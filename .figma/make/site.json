@@ -1,0 +1,11 @@
+{
+  "title": "Paro Maquinas Ingrill",
+  "description": "Sistema de control de planta para Paro Maquinas Ingrill.",
+  "language": "es",
+  "robots": {
+    "index": true
+  },
+  "icons": {
+    "icon": "/favicon.ico"
+  }
+}
