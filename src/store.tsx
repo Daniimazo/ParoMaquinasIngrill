@@ -69,6 +69,50 @@ export const TOOL_STATUS_BG: Record<ToolStatus, string> = {
   damaged: 'rgba(255,45,0,0.08)',
 }
 
+export const TOOL_BRANDS = [
+  'Bosch',
+  'DeWalt',
+  'Makita',
+  'Wolfcraft',
+  'Skilsaw',
+  'Milwaukee',
+  'Stanley',
+  'Truper',
+  'Black+Decker',
+  'Pretul',
+] as const
+
+export const TOOL_CATEGORIES = [
+  'Taladro',
+  'Taladro de banco',
+  'Lijadora orbital',
+  'Lijadora de banda',
+  'Amoladora angular',
+  'Sierra circular',
+  'Rotomartillo',
+  'Sierra caladora',
+  'Pulidora',
+  'Otra',
+] as const
+
+export const TOOL_AREAS = [
+  'Pulido barril',
+  'Carpintería',
+  'Pulido tapas/bases',
+  'Pulido asas',
+  'Accesorios',
+  'Armado de kits',
+  'Soldadura aros',
+] as const
+
+export const STOP_TYPES = [
+  'Mantenimiento correctivo',
+  'Mantenimiento Preventivo',
+  'Calidad',
+  'Seguridad',
+  'Falta de material',
+] as const
+
 const INITIAL_MACHINES: Machine[] = [
   { id: 'm1', name: 'TORNO-01', area: 'Maquinado', notes: '' },
   { id: 'm2', name: 'TORNO-02', area: 'Maquinado', notes: '' },
@@ -177,6 +221,10 @@ export function useStore() {
   const ctx = useContext(StoreContext)
   if (!ctx) throw new Error('useStore must be used within StoreProvider')
   return ctx
+}
+
+export function canResolveStop(event: Pick<StopEvent, 'reportedBy'>, currentUser: string): boolean {
+  return currentUser === 'admin' || event.reportedBy === currentUser
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useStore, TOOL_STATUS_LABEL, TOOL_STATUS_COLOR, TOOL_STATUS_BG, formatDate, formatTime } from '../store'
+import { useStore, TOOL_STATUS_LABEL, TOOL_STATUS_COLOR, TOOL_STATUS_BG, TOOL_BRANDS, TOOL_CATEGORIES, TOOL_AREAS, formatDate, formatTime } from '../store'
 import type { Tool, ToolStatus } from '../store'
 
 function ToolBadge({ status }: { status: ToolStatus }) {
@@ -55,6 +55,7 @@ export default function HerramientasPage() {
   function save() {
     const name = form.name.trim()
     if (!name) { setFormError('El nombre es requerido.'); return }
+    if (!form.category) { setFormError('La categoría es requerida.'); return }
     if (tools.some(t => t.name.toLowerCase() === name.toLowerCase() && t.id !== editingId)) { setFormError('Ya existe una herramienta con ese nombre.'); return }
     if (editingId) {
       setTools(prev => prev.map(t => t.id === editingId ? { ...t, name, category: form.category.trim(), serial: form.serial.trim(), notes: form.notes.trim() } : t))
@@ -75,7 +76,7 @@ export default function HerramientasPage() {
       <div className="flex items-end justify-between mb-6">
         <div>
           <div className="text-xs text-[#555] uppercase tracking-widest mb-1">Control de</div>
-          <h1 className="text-3xl font-extrabold text-white">Herramientas Eléctricas</h1>
+          <h1 className="text-3xl font-extrabold text-white">Herramientas</h1>
         </div>
         <div className="flex gap-1">
           {(['panel', 'catalogo', 'bitacora'] as Subview[]).map(s => (
@@ -166,14 +167,22 @@ export default function HerramientasPage() {
               <h3 className="text-lg font-bold text-white mb-5">{editingId ? tools.find(t => t.id === editingId)?.name : 'Agregar'}</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Nombre <span className="text-[#FF2D00]">*</span></label>
-                  <input type="text" placeholder="Ej: Taladro Percutor" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFormError('') }}
-                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] transition-colors" />
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Marca <span className="text-[#FF2D00]">*</span></label>
+                  <select value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFormError('') }}
+                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white transition-colors">
+                    <option value="">Selecciona una marca</option>
+                    {form.name && !TOOL_BRANDS.includes(form.name as typeof TOOL_BRANDS[number]) && <option value={form.name}>{form.name}</option>}
+                    {TOOL_BRANDS.map(brand => <option key={brand} value={brand}>{brand}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Categoría</label>
-                  <input type="text" placeholder="Ej: Taladros, Lijadoras..." value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] transition-colors" />
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Categoría <span className="text-[#FF2D00]">*</span></label>
+                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white transition-colors">
+                    <option value="">Selecciona una categoría</option>
+                    {form.category && !TOOL_CATEGORIES.includes(form.category as typeof TOOL_CATEGORIES[number]) && <option value={form.category}>{form.category}</option>}
+                    {TOOL_CATEGORIES.map(category => <option key={category} value={category}>{category}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">No. de Serie</label>
@@ -181,9 +190,13 @@ export default function HerramientasPage() {
                     className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] transition-colors" />
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Notas</label>
-                  <textarea rows={3} placeholder="Marca, modelo, ubicación habitual..." value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] resize-none transition-colors" />
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Área</label>
+                  <select value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white transition-colors">
+                    <option value="">Selecciona un área</option>
+                    {form.notes && !TOOL_AREAS.includes(form.notes as typeof TOOL_AREAS[number]) && <option value={form.notes}>{form.notes}</option>}
+                    {TOOL_AREAS.map(area => <option key={area} value={area}>{area}</option>)}
+                  </select>
                 </div>
                 {formError && <div className="text-xs text-[#FF2D00] border border-[#FF2D00]/30 bg-[#FF2D00]/5 px-3 py-2">{formError}</div>}
                 <div className="flex gap-2 pt-1">

@@ -1,21 +1,41 @@
-import { useState } from 'react'
-import { useStore, formatDate, formatTime, formatDuration } from '../store'
+import { useEffect, useState } from 'react'
+import { useStore, formatDate, formatTime, formatDuration, STOP_TYPES, canResolveStop } from '../store'
 
 export default function DashboardPage() {
   const { machines, events, setEvents, ticker: _ticker, currentUser } = useStore()
   const [solutionModal, setSolutionModal] = useState<string | null>(null)
   const [solutionText, setSolutionText] = useState('')
   const [newMachine, setNewMachine] = useState(machines[0]?.name ?? '')
-  const [newDesc, setNewDesc] = useState('')
+  const [newDesc, setNewDesc] = useState<string>(STOP_TYPES[0])
   const [useCustom, setUseCustom] = useState(false)
   const [customMachine, setCustomMachine] = useState('')
   const [historyFilter, setHistoryFilter] = useState('ALL')
   const [tab, setTab] = useState<'paros' | 'registro' | 'historial'>('paros')
+  const [permissionMessage, setPermissionMessage] = useState('')
+
+  useEffect(() => {
+    if (!permissionMessage) return
+    const timeoutId = window.setTimeout(() => setPermissionMessage(''), 4000)
+    return () => window.clearTimeout(timeoutId)
+  }, [permissionMessage])
 
   const activeEvents = events.filter(e => e.status === 'down')
   const machinesDown = new Set(activeEvents.map(e => e.machine)).size
   const machinesRunning = machines.length - machinesDown
   const downMachineNames = new Set(activeEvents.map(e => e.machine))
+  const preventiveMachineNames = new Set(activeEvents.filter(e => e.description === 'Mantenimiento Preventivo').map(e => e.machine))
+  const preventiveMachines = preventiveMachineNames.size
+  const machinesStopped = machinesDown - preventiveMachines
+
+  function requestResolve(event: { id: string; reportedBy: string }) {
+    if (!canResolveStop(event, currentUser)) {
+      setPermissionMessage('No puedes levantar este paro. Solo puede hacerlo quien lo registró o ponte en contacto con el administrador.')
+      return
+    }
+    setPermissionMessage('')
+    setSolutionModal(event.id)
+    setSolutionText('')
+  }
 
   const historyEvents = [...events]
     .filter(e => historyFilter === 'ALL' || e.machine === historyFilter)
@@ -26,24 +46,32 @@ export default function DashboardPage() {
     const machine = useCustom ? customMachine.trim().toUpperCase() : newMachine
     if (!machine || !newDesc.trim()) return
     setEvents(prev => [{ id: Date.now().toString(), machine, description: newDesc.trim(), startTime: new Date(), endTime: null, solution: null, status: 'down', reportedBy: currentUser, resolvedBy: null }, ...prev])
-    setNewDesc(''); setCustomMachine(''); setTab('paros')
+    setNewDesc(STOP_TYPES[0]); setCustomMachine(''); setTab('paros')
   }
 
   function resolveStop() {
-    if (!solutionModal || !solutionText.trim()) return
+    const event = events.find(e => e.id === solutionModal)
+    if (!solutionModal || !event || !canResolveStop(event, currentUser) || !solutionText.trim()) return
     setEvents(prev => prev.map(e => e.id === solutionModal ? { ...e, endTime: new Date(), solution: solutionText.trim(), status: 'running', resolvedBy: currentUser } : e))
     setSolutionModal(null); setSolutionText('')
   }
 
   return (
     <div className="space-y-8">
+      {permissionMessage && <div className="border border-[#FFB800]/40 bg-[#FFB800]/5 px-4 py-3 text-sm text-[#FFB800]">{permissionMessage}</div>}
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
         <div className="border border-[#FF2D00] p-6 relative overflow-hidden">
-          {machinesDown > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#FF2D00] pulse-red m-3" />}
-          <div className="text-xs text-[#FF2D00] uppercase tracking-widest mb-2">{machinesDown > 0 ? '● EN PARO' : '○ EN PARO'}</div>
-          <div className="text-6xl sm:text-7xl font-extrabold text-[#FF2D00] leading-none tabular-nums">{machinesDown}</div>
-          <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{machinesDown === 1 ? 'máquina detenida' : 'máquinas detenidas'}</div>
+          {machinesStopped > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#FF2D00] pulse-red m-3" />}
+          <div className="text-xs text-[#FF2D00] uppercase tracking-widest mb-2">{machinesStopped > 0 ? '● EN PARO' : '○ EN PARO'}</div>
+          <div className="text-6xl sm:text-7xl font-extrabold text-[#FF2D00] leading-none tabular-nums">{machinesStopped}</div>
+          <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{machinesStopped === 1 ? 'máquina detenida' : 'máquinas detenidas'}</div>
+        </div>
+        <div className="border border-[#FFB800] p-6 relative overflow-hidden">
+          {preventiveMachines > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#FFB800] m-3" />}
+          <div className="text-xs text-[#FFB800] uppercase tracking-widest mb-2">{preventiveMachines > 0 ? '● PREVENTIVO' : '○ PREVENTIVO'}</div>
+          <div className="text-6xl sm:text-7xl font-extrabold text-[#FFB800] leading-none tabular-nums">{preventiveMachines}</div>
+          <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{preventiveMachines === 1 ? 'máquina en preventivo' : 'máquinas en preventivo'}</div>
         </div>
         <div className="border border-[#222] p-6">
           <div className="text-xs text-[#00E87A] uppercase tracking-widest mb-2">● EN PRODUCCIÓN</div>
@@ -70,12 +98,18 @@ export default function DashboardPage() {
           <div className="text-xs uppercase tracking-widest text-[#555] font-semibold">Estado de planta</div>
           <div className="flex-1 h-px bg-[#1a1a1a]" />
         </div>
+        <div className="flex flex-wrap gap-4 mb-3 text-[10px] uppercase tracking-wider text-[#666]">
+          <span className="text-[#00E87A]">● En producción</span>
+          <span className="text-[#FFB800]">● Paro preventivo</span>
+          <span className="text-[#FF2D00]">● Paro</span>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
           {machines.map(m => {
             const isDown = downMachineNames.has(m.name)
+            const isPreventive = preventiveMachineNames.has(m.name)
             return (
-              <div key={m.id} className={`p-3 border text-center text-xs font-bold tracking-wider transition-all ${isDown ? 'border-[#FF2D00]/60 bg-[#FF2D00]/10 text-[#FF6B50]' : 'border-[#1a1a1a] bg-[#0d0d0d] text-[#00E87A]'}`}>
-                <div className={`w-1.5 h-1.5 rounded-full mx-auto mb-1.5 ${isDown ? 'bg-[#FF2D00] pulse-red' : 'bg-[#00E87A]'}`} />
+              <div key={m.id} className={`p-3 border text-center text-xs font-bold tracking-wider transition-all ${isPreventive ? 'border-[#FFB800]/60 bg-[#FFB800]/10 text-[#FFD166]' : isDown ? 'border-[#FF2D00]/60 bg-[#FF2D00]/10 text-[#FF6B50]' : 'border-[#1a1a1a] bg-[#0d0d0d] text-[#00E87A]'}`}>
+                <div className={`w-1.5 h-1.5 rounded-full mx-auto mb-1.5 ${isPreventive ? 'bg-[#FFB800]' : isDown ? 'bg-[#FF2D00] pulse-red' : 'bg-[#00E87A]'}`} />
                 {m.name}
               </div>
             )
@@ -117,7 +151,7 @@ export default function DashboardPage() {
                       {' · '}Reportó: <span className="text-[#777]">{ev.reportedBy}</span>
                     </p>
                   </div>
-                  <button onClick={() => { setSolutionModal(ev.id); setSolutionText('') }}
+                  <button onClick={() => requestResolve(ev)}
                     className="shrink-0 px-4 py-2 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
                     Levantar Paro
                   </button>
@@ -146,10 +180,11 @@ export default function DashboardPage() {
               )}
             </div>
             <div>
-              <label className="block text-xs uppercase tracking-widest text-[#555] mb-2">Descripción del paro</label>
-              <textarea rows={5} placeholder="Describe el motivo del paro, síntomas observados, condiciones..." value={newDesc} onChange={e => setNewDesc(e.target.value)}
-                className="w-full bg-[#0d0d0d] border border-[#333] text-white px-4 py-3 text-sm focus:outline-none focus:border-white placeholder-[#444] resize-none transition-colors" />
-              <div className="text-xs text-[#444] mt-1 text-right">{newDesc.length} caracteres</div>
+              <label className="block text-xs uppercase tracking-widest text-[#555] mb-2">Tipo de paro</label>
+              <select value={newDesc} onChange={e => setNewDesc(e.target.value)}
+                className="w-full bg-[#0d0d0d] border border-[#333] text-white px-4 py-3 text-sm focus:outline-none focus:border-white transition-colors">
+                {STOP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+              </select>
             </div>
             <div className="border border-[#1a1a1a] bg-[#0a0a0a] px-4 py-3 flex items-center justify-between">
               <span className="text-xs text-[#555] uppercase tracking-wider">Hora de registro</span>
@@ -192,7 +227,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="flex items-center">
-                        <button onClick={() => { setSolutionModal(ev.id); setSolutionText('') }}
+                        <button onClick={() => requestResolve(ev)}
                           className="px-4 py-2 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
                           Levantar Paro
                         </button>
