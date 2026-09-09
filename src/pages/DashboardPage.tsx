@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useStore, formatDate, formatTime, formatDuration, STOP_TYPES, canResolveStop } from '../store'
+import { useStore, formatDate, formatTime, formatDuration, canResolveStop } from '../store'
 
 export default function DashboardPage() {
-  const { machines, events, setEvents, ticker: _ticker, currentUser } = useStore()
+  const { machines, events, setEvents, ticker: _ticker, currentUser, lists } = useStore()
   const [solutionModal, setSolutionModal] = useState<string | null>(null)
   const [solutionText, setSolutionText] = useState('')
   const [newMachine, setNewMachine] = useState(machines[0]?.name ?? '')
-  const [newDesc, setNewDesc] = useState<string>(STOP_TYPES[0])
+  const [newDesc, setNewDesc] = useState<string>(lists.stopTypes[0] ?? '')
   const [useCustom, setUseCustom] = useState(false)
   const [customMachine, setCustomMachine] = useState('')
   const [historyFilter, setHistoryFilter] = useState('ALL')
@@ -46,7 +46,7 @@ export default function DashboardPage() {
     const machine = useCustom ? customMachine.trim().toUpperCase() : newMachine
     if (!machine || !newDesc.trim()) return
     setEvents(prev => [{ id: Date.now().toString(), machine, description: newDesc.trim(), startTime: new Date(), endTime: null, solution: null, status: 'down', reportedBy: currentUser, resolvedBy: null }, ...prev])
-    setNewDesc(STOP_TYPES[0]); setCustomMachine(''); setTab('paros')
+    setNewDesc(lists.stopTypes[0] ?? ''); setCustomMachine(''); setTab('paros')
   }
 
   function resolveStop() {
@@ -183,7 +183,7 @@ export default function DashboardPage() {
               <label className="block text-xs uppercase tracking-widest text-[#555] mb-2">Tipo de paro</label>
               <select value={newDesc} onChange={e => setNewDesc(e.target.value)}
                 className="w-full bg-[#0d0d0d] border border-[#333] text-white px-4 py-3 text-sm focus:outline-none focus:border-white transition-colors">
-                {STOP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+                {lists.stopTypes.map(type => <option key={type} value={type}>{type}</option>)}
               </select>
             </div>
             <div className="border border-[#1a1a1a] bg-[#0a0a0a] px-4 py-3 flex items-center justify-between">

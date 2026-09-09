@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useStore, formatDate, formatTime, formatDuration, STOP_TYPES, canResolveStop } from '../store'
+import { useSearchParams } from 'react-router-dom'
+import { useStore, formatDate, formatTime, formatDuration, canResolveStop, isAdminUser } from '../store'
 import type { Machine } from '../store'
 
 type Tab = 'panel' | 'activos' | 'registro' | 'historial' | 'catalogo'
 
 export default function MaquinasPage() {
-  const { machines, setMachines, events, setEvents, currentUser, ticker: _ticker } = useStore()
+  const { machines, setMachines, events, setEvents, currentUser, ticker: _ticker, lists } = useStore()
+  const isAdmin = isAdminUser(currentUser)
   const [tab, setTab] = useState<Tab>('panel')
+  const [searchParams] = useSearchParams()
+  const [selectedMachineId, setSelectedMachineId] = useState(machines[0]?.id ?? '')
 
   // ── Derived ──
   const activeEvents = events.filter(e => e.status === 'down')
@@ -16,12 +20,23 @@ export default function MaquinasPage() {
   const preventiveMachineNames = new Set(activeEvents.filter(e => e.description === 'Mantenimiento Preventivo').map(e => e.machine))
   const preventiveMachines = preventiveMachineNames.size
   const machinesStopped = machinesDown - preventiveMachines
+  const selectedMachine = machines.find(machine => machine.id === selectedMachineId) ?? machines[0]
+  const selectedEvent = selectedMachine ? activeEvents.find(event => event.machine === selectedMachine.name) : undefined
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab') as Tab | null
+    if (requestedTab && ['panel', 'activos', 'registro', 'historial', 'catalogo'].includes(requestedTab)) setTab(requestedTab)
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!machines.some(machine => machine.id === selectedMachineId)) setSelectedMachineId(machines[0]?.id ?? '')
+  }, [machines, selectedMachineId])
 
   // ── Register stop ──
   const [newMachine, setNewMachine] = useState(machines[0]?.name ?? '')
   const [useCustom, setUseCustom] = useState(false)
   const [customMachine, setCustomMachine] = useState('')
-  const [newDesc, setNewDesc] = useState<string>(STOP_TYPES[0])
+  const [newDesc, setNewDesc] = useState<string>(lists.stopTypes[0] ?? '')
   const [shiftMessage, setShiftMessage] = useState('')
 
   const isEndOfShift = activeEvents.some(e => e.description === 'Fin Turno')
@@ -67,7 +82,7 @@ export default function MaquinasPage() {
       startTime: new Date(), endTime: null, solution: null,
       status: 'down', reportedBy: currentUser, resolvedBy: null,
     }, ...prev])
-    setNewDesc(STOP_TYPES[0]); setCustomMachine(''); setTab('activos')
+    setNewDesc(lists.stopTypes[0] ?? ''); setCustomMachine(''); setTab('activos')
   }
 
   // ── Resolve stop ──
@@ -114,152 +129,112 @@ export default function MaquinasPage() {
     .sort((a, b) => b.startTime.getTime() - a.startTime.getTime())
 
   // ── CRUD ──
-  const [form, setForm] = useState({ name: '', area: '', notes: '' })
+  const [form, setForm] = useState({ type: '', number: '', area: '', notes: '' })
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
   const [formError, setFormError] = useState('')
 
-  function openNew() { setEditingId(null); setForm({ name: '', area: '', notes: '' }); setFormError('') }
-  function openEdit(m: Machine) { setEditingId(m.id); setForm({ name: m.name, area: m.area, notes: m.notes }); setFormError('') }
+  function openNew() {
+    if (!isAdmin) return
+    setEditingId(null); setForm({ type: '', number: '', area: '', notes: '' }); setFormError('')
+  }
+  function openEdit(m: Machine) {
+    if (!isAdmin) return
+    setEditingId(m.id); setForm({ type: m.type, number: m.number, area: m.area, notes: m.notes }); setFormError('')
+  }
   function saveMachine() {
-    const name = form.name.trim().toUpperCase()
-    if (!name) { setFormError('El nombre es requerido.'); return }
+    if (!isAdmin) return
+    const type = form.type.trim().toUpperCase()
+    const number = form.number.trim().padStart(2, '0')
+    const name = `${type}-${number}`
+    if (!type) { setFormError('El tipo de máquina es requerido.'); return }
+    if (!form.number.trim() || !/^\d+$/.test(form.number.trim())) { setFormError('El número de máquina debe ser numérico.'); return }
+    if (!form.area) { setFormError('El área es requerida.'); return }
     if (machines.some(m => m.name === name && m.id !== editingId)) { setFormError('Ya existe una máquina con ese nombre.'); return }
     if (editingId) {
-      setMachines(prev => prev.map(m => m.id === editingId ? { ...m, name, area: form.area.trim(), notes: form.notes.trim() } : m))
+      setMachines(prev => prev.map(m => m.id === editingId ? { ...m, name, type, number, area: form.area, notes: form.notes.trim() } : m))
     } else {
-      setMachines(prev => [...prev, { id: Date.now().toString(), name, area: form.area.trim(), notes: form.notes.trim() }])
+      setMachines(prev => [...prev, { id: Date.now().toString(), name, type, number, area: form.area, notes: form.notes.trim() }])
     }
     openNew()
   }
   function removeMachine(id: string) {
+    if (!isAdmin) return
     setMachines(prev => prev.filter(m => m.id !== id))
     setDeleteConfirm(null)
     if (editingId === id) openNew()
   }
 
-  const TABS: { key: Tab; label: string }[] = [
-    { key: 'panel', label: 'Panel' },
-    { key: 'activos', label: `Paros activos${activeEvents.length > 0 ? ` (${activeEvents.length})` : ''}` },
-    { key: 'registro', label: 'Registrar paro' },
-    { key: 'historial', label: 'Historial' },
-    { key: 'catalogo', label: 'Catálogo' },
-  ]
-
   return (
     <div>
-      {/* Page header */}
-      <div className="mb-6">
-        <div className="text-xs text-[#555] uppercase tracking-widest mb-1">Control de</div>
-        <h1 className="text-3xl font-extrabold text-white">Máquinas</h1>
-      </div>
       {permissionMessage && <div className="mb-6 border border-[#FFB800]/40 bg-[#FFB800]/5 px-4 py-3 text-sm text-[#FFB800]">{permissionMessage}</div>}
-
-      {/* Tab bar */}
-      <div className="flex gap-1 flex-wrap mb-8 pb-6 border-b border-[#1a1a1a]">
-        {TABS.map(({ key, label }) => (
-          <button key={key} onClick={() => setTab(key)}
-            className={`px-4 py-2 text-xs uppercase tracking-widest font-semibold border transition-all cursor-pointer ${tab === key ? 'bg-white text-black border-white' : 'border-[#222] text-[#555] hover:text-[#aaa] hover:border-[#444]'}`}>
-            {label}
-          </button>
-        ))}
-      </div>
 
       {/* ── PANEL ── */}
       {tab === 'panel' && (
-        <div className="space-y-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#222] bg-[#0a0a0a] p-4">
-            <div>
-              <div className="text-xs text-[#555] uppercase tracking-widest mb-1">Control de turno</div>
-              <div className="text-sm text-white">{isEndOfShift ? 'Turno finalizado' : 'Turno en producción'}</div>
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border border-[#292929] bg-[#0d0d0d] px-4 py-3">
+            <div className="flex items-center gap-5 text-xs uppercase tracking-wider">
+              <span className="text-white">Estado de máquinas</span>
+              <span className="text-[#00E87A]">Disponibles: {machinesRunning}</span>
+              <span className="text-[#FF2D00]">En paro: {machinesStopped}</span>
+              <span className="text-[#FFB800]">Preventivo: {preventiveMachines}</span>
             </div>
-            <button onClick={toggleShift}
-              className={`px-4 py-3 text-xs uppercase tracking-widest font-bold border transition-all cursor-pointer ${isEndOfShift ? 'border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black' : 'border-[#FFB800] text-[#FFB800] hover:bg-[#FFB800] hover:text-black'}`}>
-              {isEndOfShift ? 'Iniciar Turno' : 'Finalizar Turno'}
+            <button onClick={toggleShift} className={`px-3 py-2 text-[11px] uppercase tracking-wider font-bold border transition-colors cursor-pointer ${isEndOfShift ? 'border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black' : 'border-[#FFB800] text-[#FFB800] hover:bg-[#FFB800] hover:text-black'}`}>
+              {isEndOfShift ? 'Iniciar turno' : 'Finalizar turno'}
             </button>
           </div>
-          {shiftMessage && <div className="border border-[#FFB800]/40 bg-[#FFB800]/5 px-4 py-3 text-sm text-[#FFB800]">{shiftMessage}</div>}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
-            <div className="border border-[#FF2D00] p-6 relative overflow-hidden">
-              {machinesStopped > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#FF2D00] pulse-red m-3" />}
-              <div className="text-xs text-[#FF2D00] uppercase tracking-widest mb-2">{machinesStopped > 0 ? '● EN PARO' : '○ EN PARO'}</div>
-              <div className="text-6xl sm:text-7xl font-extrabold text-[#FF2D00] leading-none tabular-nums">{machinesStopped}</div>
-              <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{machinesStopped === 1 ? 'máquina detenida' : 'máquinas detenidas'}</div>
-            </div>
-            <div className="border border-[#FFB800] p-6 relative overflow-hidden">
-              {preventiveMachines > 0 && <div className="absolute top-0 right-0 w-2 h-2 bg-[#FFB800] m-3" />}
-              <div className="text-xs text-[#FFB800] uppercase tracking-widest mb-2">{preventiveMachines > 0 ? '● PREVENTIVO' : '○ PREVENTIVO'}</div>
-              <div className="text-6xl sm:text-7xl font-extrabold text-[#FFB800] leading-none tabular-nums">{preventiveMachines}</div>
-              <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{preventiveMachines === 1 ? 'máquina en preventivo' : 'máquinas en preventivo'}</div>
-            </div>
-            <div className="border border-[#222] p-6">
-              <div className="text-xs text-[#00E87A] uppercase tracking-widest mb-2">● EN PRODUCCIÓN</div>
-              <div className="text-6xl sm:text-7xl font-extrabold text-[#00E87A] leading-none tabular-nums">{machinesRunning}</div>
-              <div className="text-xs text-[#555] mt-3 uppercase tracking-wider">{machinesRunning === 1 ? 'máquina activa' : 'máquinas activas'}</div>
-            </div>
+          {shiftMessage && <div className="border border-[#FFB800]/40 bg-[#FFB800]/5 px-4 py-3 text-xs text-[#FFB800]">{shiftMessage}</div>}
+
+          <div className="border border-[#292929] bg-[#0b0b0b] overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-xs">
+              <thead className="bg-[#151515] text-[10px] uppercase tracking-[0.15em] text-[#666]">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Máquina</th>
+                  <th className="px-4 py-3 font-medium">Área</th>
+                  <th className="px-4 py-3 font-medium">Estado</th>
+                  <th className="px-4 py-3 font-medium">Tiempo de paro</th>
+                  <th className="px-4 py-3 font-medium">Inicio</th>
+                  <th className="px-4 py-3 font-medium text-right">Acción</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#202020]">
+                {machines.map(machine => {
+                  const event = activeEvents.find(item => item.machine === machine.name)
+                  const isPreventive = event?.description === 'Mantenimiento Preventivo'
+                  const status = event ? (isPreventive ? 'PREVENTIVO' : 'EN PARO') : 'PRODUCCIÓN'
+                  return (
+                    <tr key={machine.id} onClick={() => setSelectedMachineId(machine.id)} className={`cursor-pointer transition-colors ${selectedMachine?.id === machine.id ? 'bg-[#191919]' : 'hover:bg-[#141414]'}`}>
+                      <td className="px-4 py-3 font-bold text-white">{machine.name}</td>
+                      <td className="px-4 py-3 text-[#888]">{machine.area || '—'}</td>
+                      <td className={`px-4 py-3 font-bold ${isPreventive ? 'text-[#FFB800]' : event ? 'text-[#FF4A2F]' : 'text-[#00E87A]'}`}><span className="mr-2">●</span>{status}</td>
+                      <td className={`px-4 py-3 font-mono ${event ? 'text-[#FF6B50]' : 'text-[#555]'}`}>{event ? formatDuration(event.startTime, null) : '--'}</td>
+                      <td className="px-4 py-3 text-[#777]">{event ? formatTime(event.startTime) : '--'}</td>
+                      <td className="px-4 py-3 text-right"><button onClick={clickEvent => { clickEvent.stopPropagation(); setSelectedMachineId(machine.id) }} className="text-[#aaa] hover:text-white underline underline-offset-4 cursor-pointer">Ver</button></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-[#555] uppercase tracking-widest">Disponibilidad</span>
-              <span className="text-xs text-[#888]">{machines.length ? Math.round((machinesRunning / machines.length) * 100) : 0}%</span>
-            </div>
-            <div className="w-full h-2 bg-[#111] border border-[#222]">
-              <div className="h-full bg-[#00E87A] transition-all duration-700" style={{ width: `${machines.length ? (machinesRunning / machines.length) * 100 : 0}%` }} />
-            </div>
-            <div className="flex justify-between text-xs text-[#444] mt-1"><span>0</span><span>{machines.length} total</span></div>
-          </div>
-
-          <div>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="text-xs uppercase tracking-widest text-[#555] font-semibold">Estado de planta</div>
-              <div className="flex-1 h-px bg-[#1a1a1a]" />
-            </div>
-            <div className="flex flex-wrap gap-4 mb-3 text-[10px] uppercase tracking-wider text-[#666]">
-              <span className="text-[#00E87A]">● En producción</span>
-              <span className="text-[#FFB800]">● Paro preventivo</span>
-              <span className="text-[#FF2D00]">● Paro</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
-              {machines.map(m => {
-                const isDown = downMachineNames.has(m.name)
-                const isPreventive = preventiveMachineNames.has(m.name)
-                return (
-                  <div key={m.id} className={`p-3 border text-center text-xs font-bold tracking-wider transition-all ${isPreventive ? 'border-[#FFB800]/60 bg-[#FFB800]/10 text-[#FFD166]' : isDown ? 'border-[#FF2D00]/60 bg-[#FF2D00]/10 text-[#FF6B50]' : 'border-[#1a1a1a] bg-[#0d0d0d] text-[#00E87A]'}`}>
-                    <div className={`w-1.5 h-1.5 rounded-full mx-auto mb-1.5 ${isPreventive ? 'bg-[#FFB800]' : isDown ? 'bg-[#FF2D00] pulse-red' : 'bg-[#00E87A]'}`} />
-                    {m.name}
-                    {m.area && <div className="text-[#444] font-normal mt-0.5 text-[10px]">{m.area}</div>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-
-          {activeEvents.length > 0 && (
-            <div>
-              <div className="flex items-center gap-3 mb-4">
-                <div className="text-xs uppercase tracking-widest text-[#FF2D00] font-semibold">Paros activos</div>
-                <div className="flex-1 h-px bg-[#FF2D00]/20" />
-                <button onClick={() => setTab('activos')} className="text-xs text-[#555] hover:text-[#aaa] transition-colors cursor-pointer">Ver todos →</button>
+          {selectedMachine && (
+            <section className="border border-[#292929] bg-[#0d0d0d]">
+              <div className="flex items-center justify-between border-b border-[#292929] px-4 py-3">
+                <div className="text-xs uppercase tracking-[0.15em] text-[#666]">Detalle de máquina</div>
+                <div className="text-sm font-bold text-white">{selectedMachine.name}</div>
               </div>
-              <div className="space-y-2">
-                {activeEvents.slice(0, 3).map(ev => (
-                  <div key={ev.id} className="border border-[#FF2D00]/40 bg-[#FF2D00]/5 p-4 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-3 mb-1">
-                        <span className="text-xs bg-[#FF2D00] text-white px-2 py-0.5 font-bold tracking-wider">{ev.machine}</span>
-                        <span className="text-xs text-[#FF6B50] font-mono blink">● {formatDuration(ev.startTime, null)}</span>
-                      </div>
-                      <p className="text-xs text-[#888] truncate">{ev.description}</p>
-                    </div>
-                    <button onClick={() => requestResolve(ev)}
-                      className="shrink-0 px-3 py-1.5 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
-                      Levantar
-                    </button>
-                  </div>
-                ))}
+              <div className="grid gap-0 md:grid-cols-2 lg:grid-cols-4">
+                <div className="border-b md:border-r border-[#222] px-4 py-4"><div className="detail-label">Estado actual</div><div className={`mt-2 text-sm font-bold ${selectedEvent ? 'text-[#FF4A2F]' : 'text-[#00E87A]'}`}>{selectedEvent ? (selectedEvent.description === 'Mantenimiento Preventivo' ? 'PREVENTIVO' : 'EN PARO') : 'PRODUCCIÓN'}</div></div>
+                <div className="border-b lg:border-r border-[#222] px-4 py-4"><div className="detail-label">Inicio del paro</div><div className="mt-2 text-sm text-[#bbb]">{selectedEvent ? `${formatDate(selectedEvent.startTime)} ${formatTime(selectedEvent.startTime)}` : '—'}</div></div>
+                <div className="border-b md:border-r lg:border-b-0 border-[#222] px-4 py-4"><div className="detail-label">Tiempo transcurrido</div><div className="mt-2 text-sm font-mono text-[#FFB800]">{selectedEvent ? formatDuration(selectedEvent.startTime, null) : '—'}</div></div>
+                <div className="px-4 py-4"><div className="detail-label">Área</div><div className="mt-2 text-sm text-[#bbb]">{selectedMachine.area || '—'}</div></div>
               </div>
-            </div>
+              {selectedEvent && <div className="border-t border-[#222] px-4 py-4"><div className="detail-label">Motivo del paro</div><div className="mt-2 text-sm text-[#bbb]">{selectedEvent.description}</div><div className="mt-1 text-xs text-[#666]">Registrado por: {selectedEvent.reportedBy}</div></div>}
+              <div className="flex flex-wrap gap-2 border-t border-[#222] px-4 py-3">
+                <button onClick={() => { setNewMachine(selectedMachine.name); setTab('registro') }} className="px-3 py-2 text-[11px] uppercase tracking-wider font-bold border border-[#FF2D00] text-[#FF4A2F] hover:bg-[#FF2D00] hover:text-white cursor-pointer">Registrar paro</button>
+                {selectedEvent && <button onClick={() => requestResolve(selectedEvent)} className="px-3 py-2 text-[11px] uppercase tracking-wider font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black cursor-pointer">Finalizar paro</button>}
+              </div>
+            </section>
           )}
         </div>
       )}
@@ -320,7 +295,7 @@ export default function MaquinasPage() {
             <label className="block text-xs uppercase tracking-widest text-[#555] mb-2">Tipo de paro</label>
             <select value={newDesc} onChange={e => setNewDesc(e.target.value)}
               className="w-full bg-[#0d0d0d] border border-[#333] text-white px-4 py-3 text-sm focus:outline-none focus:border-white transition-colors">
-              {STOP_TYPES.map(type => <option key={type} value={type}>{type}</option>)}
+              {lists.stopTypes.map(type => <option key={type} value={type}>{type}</option>)}
             </select>
           </div>
 
@@ -398,20 +373,31 @@ export default function MaquinasPage() {
       {/* ── CATÁLOGO ── */}
       {tab === 'catalogo' && (
         <div className="grid md:grid-cols-5 gap-8">
-          <div className="md:col-span-2">
+          {isAdmin && <div className="md:col-span-2">
             <div className="border border-[#222] p-5 sticky top-6">
               <div className="text-xs text-[#555] uppercase tracking-widest mb-1">{editingId ? 'Editando' : 'Nueva máquina'}</div>
               <h3 className="text-lg font-bold text-white mb-5">{editingId ? machines.find(m => m.id === editingId)?.name : 'Agregar'}</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Nombre / Clave <span className="text-[#FF2D00]">*</span></label>
-                  <input type="text" placeholder="Ej: TORNO-03" value={form.name} onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setFormError('') }}
-                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] transition-colors uppercase" />
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Tipo de máquina <span className="text-[#FF2D00]">*</span></label>
+                  <select value={form.type} onChange={e => { setForm(f => ({ ...f, type: e.target.value })); setFormError('') }}
+                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white transition-colors">
+                    <option value="">Selecciona un tipo</option>
+                    {lists.machineTypes.map(type => <option key={type} value={type}>{type}</option>)}
+                  </select>
                 </div>
                 <div>
-                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Área / Departamento</label>
-                  <input type="text" placeholder="Ej: Maquinado" value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Número de máquina <span className="text-[#FF2D00]">*</span></label>
+                  <input type="number" min="1" step="1" placeholder="Ej: 03" value={form.number} onChange={e => setForm(f => ({ ...f, number: e.target.value }))}
                     className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white placeholder-[#333] transition-colors" />
+                </div>
+                <div>
+                  <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Área <span className="text-[#FF2D00]">*</span></label>
+                  <select value={form.area} onChange={e => setForm(f => ({ ...f, area: e.target.value }))}
+                    className="w-full bg-[#080808] border border-[#333] text-white px-3 py-2.5 text-sm focus:outline-none focus:border-white transition-colors">
+                    <option value="">Selecciona un área</option>
+                    {lists.areas.map(area => <option key={area} value={area}>{area}</option>)}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs uppercase tracking-widest text-[#555] mb-1.5">Notas</label>
@@ -425,11 +411,14 @@ export default function MaquinasPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div>}
 
-          <div className="md:col-span-3">
+          <div className={isAdmin ? 'md:col-span-3' : 'md:col-span-5'}>
             <div className="flex items-end justify-between mb-4">
-              <div className="text-xs text-[#444]">{machines.length} registros</div>
+              <div>
+                <div className="text-xs text-[#444]">{machines.length} registros</div>
+                {!isAdmin && <div className="text-xs text-[#FFB800] mt-2">Solo el usuario administrador puede modificar el catálogo.</div>}
+              </div>
             </div>
             {machines.length === 0 && <div className="border border-[#1a1a1a] p-10 text-center text-[#444] text-sm">Sin máquinas registradas.</div>}
             <div className="space-y-2">
@@ -448,10 +437,10 @@ export default function MaquinasPage() {
                         </div>
                         {m.notes && <p className="text-xs text-[#555] mt-1 truncate">{m.notes}</p>}
                       </div>
-                      <div className="flex gap-1 shrink-0">
+                      {isAdmin && <div className="flex gap-1 shrink-0">
                         <button onClick={() => isEditing ? openNew() : openEdit(m)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{isEditing ? 'Esc' : 'Editar'}</button>
                         <button onClick={() => setDeleteConfirm(m.id)} disabled={isDown} title={isDown ? 'Máquina en paro activo' : ''} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Eliminar</button>
-                      </div>
+                      </div>}
                     </div>
                   </div>
                 )

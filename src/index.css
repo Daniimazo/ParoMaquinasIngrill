@@ -12,6 +12,8 @@
 body {
   background-color: #080808;
   color: #e8e8e8;
+  margin: 0;
+  min-width: 320px;
 }
 
 ::-webkit-scrollbar {
@@ -45,4 +47,11 @@ body {
 
 .pulse-red {
   animation: pulse-red 2s ease-in-out infinite;
+}
+
+.detail-label {
+  color: #666;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }

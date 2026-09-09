@@ -19,6 +19,8 @@ export interface StopEvent {
 export interface Machine {
   id: string
   name: string
+  type: string
+  number: string
   area: string
   notes: string
 }
@@ -105,6 +107,16 @@ export const TOOL_AREAS = [
   'Soldadura aros',
 ] as const
 
+export const MACHINE_TYPES = [
+  'TORNO',
+  'FRESADORA',
+  'PRENSA',
+  'SOLDADORA',
+  'CNC',
+  'COMPRESOR',
+  'OTRA',
+] as const
+
 export const STOP_TYPES = [
   'Mantenimiento correctivo',
   'Mantenimiento Preventivo',
@@ -114,16 +126,16 @@ export const STOP_TYPES = [
 ] as const
 
 const INITIAL_MACHINES: Machine[] = [
-  { id: 'm1', name: 'TORNO-01', area: 'Maquinado', notes: '' },
-  { id: 'm2', name: 'TORNO-02', area: 'Maquinado', notes: '' },
-  { id: 'm3', name: 'FRESADORA-01', area: 'Maquinado', notes: '' },
-  { id: 'm4', name: 'FRESADORA-02', area: 'Maquinado', notes: '' },
-  { id: 'm5', name: 'PRENSA-01', area: 'Prensado', notes: '' },
-  { id: 'm6', name: 'PRENSA-02', area: 'Prensado', notes: '' },
-  { id: 'm7', name: 'SOLDADORA-01', area: 'Soldadura', notes: '' },
-  { id: 'm8', name: 'CNC-01', area: 'CNC', notes: '' },
-  { id: 'm9', name: 'CNC-02', area: 'CNC', notes: '' },
-  { id: 'm10', name: 'COMPRESOR-01', area: 'Servicios', notes: '' },
+  { id: 'm1', name: 'TORNO-01', type: 'TORNO', number: '01', area: 'Pulido barril', notes: '' },
+  { id: 'm2', name: 'TORNO-02', type: 'TORNO', number: '02', area: 'Pulido barril', notes: '' },
+  { id: 'm3', name: 'FRESADORA-01', type: 'FRESADORA', number: '01', area: 'Carpintería', notes: '' },
+  { id: 'm4', name: 'FRESADORA-02', type: 'FRESADORA', number: '02', area: 'Carpintería', notes: '' },
+  { id: 'm5', name: 'PRENSA-01', type: 'PRENSA', number: '01', area: 'Armado de kits', notes: '' },
+  { id: 'm6', name: 'PRENSA-02', type: 'PRENSA', number: '02', area: 'Armado de kits', notes: '' },
+  { id: 'm7', name: 'SOLDADORA-01', type: 'SOLDADORA', number: '01', area: 'Soldadura aros', notes: '' },
+  { id: 'm8', name: 'CNC-01', type: 'CNC', number: '01', area: 'Pulido tapas/bases', notes: '' },
+  { id: 'm9', name: 'CNC-02', type: 'CNC', number: '02', area: 'Pulido tapas/bases', notes: '' },
+  { id: 'm10', name: 'COMPRESOR-01', type: 'COMPRESOR', number: '01', area: 'Accesorios', notes: '' },
 ]
 
 const INITIAL_TOOLS: Tool[] = [
@@ -158,6 +170,16 @@ interface AppStore {
   logout: () => void
   currentUser: string
 
+  // Editable catalog lists
+  lists: {
+    areas: string[]
+    machineTypes: string[]
+    toolTypes: string[]
+    brands: string[]
+    stopTypes: string[]
+  }
+  setLists: React.Dispatch<React.SetStateAction<AppStore['lists']>>
+
   // Machines
   machines: Machine[]
   setMachines: React.Dispatch<React.SetStateAction<Machine[]>>
@@ -185,6 +207,13 @@ const DEMO_USERS: Record<string, string> = {
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
+  const [lists, setLists] = useState<AppStore['lists']>({
+    areas: [...TOOL_AREAS],
+    machineTypes: [...MACHINE_TYPES],
+    toolTypes: [...TOOL_CATEGORIES],
+    brands: [...TOOL_BRANDS],
+    stopTypes: [...STOP_TYPES],
+  })
   const [machines, setMachines] = useState<Machine[]>(INITIAL_MACHINES)
   const [events, setEvents] = useState<StopEvent[]>(INITIAL_EVENTS)
   const [tools, setTools] = useState<Tool[]>(INITIAL_TOOLS)
@@ -211,7 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
+    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, lists, setLists, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
       {children}
     </StoreContext.Provider>
   )
@@ -225,6 +254,10 @@ export function useStore() {
 
 export function canResolveStop(event: Pick<StopEvent, 'reportedBy'>, currentUser: string): boolean {
   return currentUser === 'admin' || event.reportedBy === currentUser
+}
+
+export function isAdminUser(currentUser: string): boolean {
+  return currentUser === 'admin'
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
