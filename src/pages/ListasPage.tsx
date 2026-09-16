@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useStore, isAdminUser } from '../store'
+import { useStore, canAccess } from '../store'
 
 type ListKey = 'areas' | 'machineTypes' | 'toolTypes' | 'brands' | 'stopTypes'
 
@@ -13,8 +13,7 @@ const LIST_INFO: { key: ListKey; label: string }[] = [
 ]
 
 export default function ListasPage() {
-  const { currentUser, lists, setLists } = useStore()
-  const isAdmin = isAdminUser(currentUser)
+  const { currentUser, users, lists, setLists } = useStore()
   const [searchParams] = useSearchParams()
   const [selectedList, setSelectedList] = useState<ListKey>('areas')
   const [value, setValue] = useState('')
@@ -24,6 +23,11 @@ export default function ListasPage() {
 
   const selectedInfo = LIST_INFO.find(item => item.key === selectedList) ?? LIST_INFO[0]
   const selectedValues = lists[selectedList]
+  const resource = `lists.${selectedList}` as 'lists.areas' | 'lists.machineTypes' | 'lists.toolTypes' | 'lists.brands' | 'lists.stopTypes'
+  const canView = canAccess(currentUser, users, resource)
+  const canCreate = canAccess(currentUser, users, resource, 'create')
+  const canEdit = canAccess(currentUser, users, resource, 'edit')
+  const canDelete = canAccess(currentUser, users, resource, 'delete')
 
   useEffect(() => {
     const requestedList = searchParams.get('list') as ListKey | null
@@ -42,7 +46,7 @@ export default function ListasPage() {
   }
 
   function save() {
-    if (!isAdmin) return
+    if (editingValue ? !canEdit : !canCreate) return
     const nextValue = value.trim()
     if (!nextValue) {
       setError('El valor es requerido.')
@@ -63,20 +67,20 @@ export default function ListasPage() {
   }
 
   function edit(item: string) {
-    if (!isAdmin) return
+     if (!canEdit) return
     setEditingValue(item)
     setValue(item)
     setError('')
   }
 
   function remove(item: string) {
-    if (!isAdmin) return
+     if (!canDelete) return
     setLists(prev => ({ ...prev, [selectedList]: prev[selectedList].filter(current => current !== item) }))
     if (editingValue === item) resetForm()
     setDeleteConfirm(null)
   }
 
-  if (!isAdmin) return null
+  if (!canView) return <div className="border border-[#FF2D00]/40 bg-[#FF2D00]/5 p-5 text-sm text-[#FF6B50]">No tienes permiso para ver esta lista.</div>
 
   return (
     <div>
@@ -98,7 +102,7 @@ export default function ListasPage() {
             {error && <div className="text-xs text-[#FF2D00] border border-[#FF2D00]/30 bg-[#FF2D00]/5 px-3 py-2 mt-4">{error}</div>}
             <div className="flex gap-2 pt-4">
               {editingValue && <button onClick={resetForm} className="px-4 py-2.5 text-xs uppercase tracking-widest font-bold border border-[#333] text-[#555] hover:text-[#888] hover:border-[#555] transition-all cursor-pointer">Cancelar</button>}
-              <button onClick={save} className="flex-1 py-2.5 text-xs uppercase tracking-widest font-bold bg-white text-black hover:bg-[#e8e8e8] transition-all cursor-pointer">
+              <button onClick={save} disabled={editingValue ? !canEdit : !canCreate} className="flex-1 py-2.5 text-xs uppercase tracking-widest font-bold bg-white text-black hover:bg-[#e8e8e8] disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer">
                 {editingValue ? 'Guardar cambios' : 'Agregar valor'}
               </button>
             </div>
@@ -115,8 +119,8 @@ export default function ListasPage() {
                 <span className="w-2 h-2 rounded-full bg-[#00E87A] shrink-0" />
                 <span className="text-sm font-bold text-white flex-1">{item}</span>
                 <div className="flex gap-1 shrink-0">
-                  <button onClick={() => editingValue === item ? resetForm() : edit(item)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{editingValue === item ? 'Esc' : 'Editar'}</button>
-                  <button onClick={() => setDeleteConfirm(item)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer">Eliminar</button>
+                  {canEdit && <button onClick={() => editingValue === item ? resetForm() : edit(item)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{editingValue === item ? 'Esc' : 'Editar'}</button>}
+                  {canDelete && <button onClick={() => setDeleteConfirm(item)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer">Eliminar</button>}
                 </div>
               </div>
             ))}

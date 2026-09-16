@@ -49,7 +49,13 @@ export interface ToolLog {
 }
 
 export type UserRole = 'admin' | 'supervisor' | 'operador'
-export type Permission = string
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
+export type PermissionResource =
+  | 'machines.summary' | 'machines.register' | 'machines.history' | 'machines.catalog'
+  | 'tools.panel' | 'tools.log' | 'tools.catalog'
+  | 'lists.areas' | 'lists.stopTypes' | 'lists.machineTypes' | 'lists.toolTypes' | 'lists.brands'
+  | 'users.permissions' | 'users.roles' | 'users.list' | 'users.profile' | 'users.password'
+export type Permission = `${PermissionResource}.${PermissionAction}`
 
 export interface AppUser {
   id: string
@@ -180,15 +186,43 @@ const INITIAL_TOOL_LOGS: ToolLog[] = [
 ]
 
 const INITIAL_USERS: AppUser[] = [
-  { id: 'u1', username: 'admin', password: 'admin123', role: 'admin', permissions: ['users.manage', 'users.permissions'], active: true },
-  { id: 'u2', username: 'supervisor', password: 'sup2024', role: 'supervisor', permissions: [], active: true },
-  { id: 'u3', username: 'operador', password: 'op1234', role: 'operador', permissions: [], active: true },
+  { id: 'u1', username: 'admin', password: 'admin123', role: 'admin', permissions: [], active: true },
+  { id: 'u2', username: 'supervisor', password: 'sup2024', role: 'supervisor', permissions: ['machines.summary.view', 'machines.register.view', 'machines.register.create', 'machines.register.edit', 'machines.history.view', 'tools.panel.view', 'tools.log.view'], active: true },
+  { id: 'u3', username: 'operador', password: 'op1234', role: 'operador', permissions: ['machines.summary.view', 'machines.register.view', 'machines.register.create', 'machines.history.view', 'tools.panel.view'], active: true },
 ]
 
-const INITIAL_PERMISSIONS: AvailablePermission[] = [
-  { key: 'users.manage', label: 'Administrar usuarios', description: 'Crear, editar, activar y desactivar cuentas.' },
-  { key: 'users.permissions', label: 'Administrar permisos', description: 'Asignar permisos a otros usuarios.' },
+const PERMISSION_RESOURCES: { key: PermissionResource; label: string; description: string }[] = [
+  { key: 'machines.summary', label: 'Máquinas / Resumen', description: 'Estado y resumen de máquinas.' },
+  { key: 'machines.register', label: 'Máquinas / Registrar paro', description: 'Registrar y levantar paros.' },
+  { key: 'machines.history', label: 'Máquinas / Historial', description: 'Consultar historial de paros.' },
+  { key: 'machines.catalog', label: 'Añadir / Máquinas', description: 'Administrar catálogo de máquinas.' },
+  { key: 'tools.panel', label: 'Herramientas / Panel', description: 'Consultar estado de herramientas.' },
+  { key: 'tools.log', label: 'Herramientas / Bitácora', description: 'Consultar bitácora de herramientas.' },
+  { key: 'tools.catalog', label: 'Añadir / Herramientas', description: 'Administrar catálogo de herramientas.' },
+  { key: 'lists.areas', label: 'Añadir / Área', description: 'Administrar áreas.' },
+  { key: 'lists.stopTypes', label: 'Añadir / Tipo de paro', description: 'Administrar tipos de paro.' },
+  { key: 'lists.machineTypes', label: 'Añadir / Tipo de máquina', description: 'Administrar tipos de máquina.' },
+  { key: 'lists.toolTypes', label: 'Añadir / Tipo de herramienta', description: 'Administrar tipos de herramienta.' },
+  { key: 'lists.brands', label: 'Añadir / Marca', description: 'Administrar marcas.' },
+  { key: 'users.permissions', label: 'Usuarios / Permisos', description: 'Asignar permisos.' },
+  { key: 'users.roles', label: 'Usuarios / Roles', description: 'Consultar roles.' },
+  { key: 'users.list', label: 'Usuarios / Lista', description: 'Administrar cuentas.' },
+  { key: 'users.profile', label: 'Usuarios / Mi perfil', description: 'Consultar perfil.' },
+  { key: 'users.password', label: 'Usuarios / Contraseña', description: 'Cambiar contraseña.' },
 ]
+
+export const PERMISSION_ACTIONS: { key: PermissionAction; label: string }[] = [
+  { key: 'view', label: 'Ver' },
+  { key: 'create', label: 'Crear' },
+  { key: 'edit', label: 'Editar' },
+  { key: 'delete', label: 'Eliminar' },
+]
+
+const INITIAL_PERMISSIONS: AvailablePermission[] = PERMISSION_RESOURCES.flatMap(resource => PERMISSION_ACTIONS.map(action => ({
+  key: `${resource.key}.${action.key}` as Permission,
+  label: `${resource.label} / ${action.label}`,
+  description: resource.description,
+})))
 
 // ─── CONTEXT ─────────────────────────────────────────────────────────────────
 
@@ -291,8 +325,13 @@ export function isAdminUser(currentUser: string): boolean {
 }
 
 export function canManageUsers(currentUser: string, users: AppUser[]): boolean {
+  return canAccess(currentUser, users, 'users.list', 'view')
+}
+
+export function canAccess(currentUser: string, users: AppUser[], resource: PermissionResource, action: PermissionAction = 'view'): boolean {
+  if (currentUser === 'admin') return true
   const account = users.find(user => user.username === currentUser)
-  return currentUser === 'admin' || account?.permissions.includes('users.manage') === true
+  return account?.permissions.includes(`${resource}.${action}` as Permission) === true
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────

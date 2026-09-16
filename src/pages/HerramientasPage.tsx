@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useStore, TOOL_STATUS_LABEL, TOOL_STATUS_COLOR, TOOL_STATUS_BG, formatDate, formatTime, isAdminUser } from '../store'
+import { useStore, TOOL_STATUS_LABEL, TOOL_STATUS_COLOR, TOOL_STATUS_BG, formatDate, formatTime, canAccess } from '../store'
 import type { Tool, ToolStatus } from '../store'
 
 function ToolBadge({ status }: { status: ToolStatus }) {
@@ -13,8 +13,12 @@ function ToolBadge({ status }: { status: ToolStatus }) {
 }
 
 export default function HerramientasPage() {
-  const { tools, setTools, toolLogs, setToolLogs, currentUser, lists } = useStore()
-  const isAdmin = isAdminUser(currentUser)
+  const { tools, setTools, toolLogs, setToolLogs, currentUser, users, lists } = useStore()
+  const canEditStatus = canAccess(currentUser, users, 'tools.catalog', 'edit')
+  const canCreate = canAccess(currentUser, users, 'tools.catalog', 'create')
+  const canEdit = canAccess(currentUser, users, 'tools.catalog', 'edit')
+  const canDelete = canAccess(currentUser, users, 'tools.catalog', 'delete')
+  const canCatalog = canCreate || canEdit || canDelete
 
   type Subview = 'panel' | 'catalogo' | 'bitacora'
   const [subview, setSubview] = useState<Subview>('panel')
@@ -48,11 +52,11 @@ export default function HerramientasPage() {
   const logNames = [...new Set(toolLogs.map(l => l.toolName))].sort()
 
   function openStatusModal(t: Tool) {
-    if (!isAdmin) return
+    if (!canEditStatus) return
     setStatusModal(t); setNewStatus(t.status); setStatusNote('')
   }
   function applyStatus() {
-    if (!isAdmin || !statusModal) return
+    if (!canEditStatus || !statusModal) return
     const prev = statusModal.status
     setTools(ts => ts.map(t => t.id === statusModal.id ? { ...t, status: newStatus, statusNote: statusNote.trim(), statusChangedAt: new Date() } : t))
     if (prev !== newStatus) {
@@ -62,15 +66,15 @@ export default function HerramientasPage() {
   }
 
   function openNew() {
-    if (!isAdmin) return
+    if (!canCreate && !canEdit) return
     setEditingId(null); setForm({ name: '', category: '', serial: '', notes: '' }); setFormError('')
   }
   function openEdit(t: Tool) {
-    if (!isAdmin) return
+    if (!canEdit) return
     setEditingId(t.id); setForm({ name: t.name, category: t.category, serial: t.serial, notes: t.notes }); setFormError('')
   }
   function save() {
-    if (!isAdmin) return
+    if (editingId ? !canEdit : !canCreate) return
     const name = form.name.trim()
     if (!name) { setFormError('El nombre es requerido.'); return }
     if (!form.category) { setFormError('La categoría es requerida.'); return }
@@ -83,7 +87,7 @@ export default function HerramientasPage() {
     openNew()
   }
   function remove(id: string) {
-    if (!isAdmin) return
+    if (!canDelete) return
     setTools(prev => prev.filter(t => t.id !== id))
     setDeleteConfirm(null)
     if (editingId === id) openNew()
@@ -123,7 +127,7 @@ export default function HerramientasPage() {
                       {t.statusNote && <p className="text-xs text-[#888] mt-1 truncate">{t.statusNote}</p>}
                       <p className="text-xs text-[#444] mt-0.5">Desde: {formatDate(t.statusChangedAt)} {formatTime(t.statusChangedAt)}</p>
                     </div>
-                    {isAdmin && <button onClick={() => openStatusModal(t)}
+                    {canEditStatus && <button onClick={() => openStatusModal(t)}
                       className="shrink-0 px-4 py-2 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
                       Cambiar estado
                     </button>}
@@ -150,7 +154,7 @@ export default function HerramientasPage() {
                   </div>
                   {t.serial && <div className="text-xs text-[#444] mb-2">S/N: <span className="text-[#666]">{t.serial}</span></div>}
                   {t.statusNote && <p className="text-xs text-[#666] mb-3 line-clamp-2">{t.statusNote}</p>}
-                  {isAdmin && <button onClick={() => openStatusModal(t)}
+                  {canEditStatus && <button onClick={() => openStatusModal(t)}
                     className="w-full py-1.5 text-xs uppercase tracking-widest font-semibold border border-[#222] text-[#555] hover:text-white hover:border-[#555] transition-all cursor-pointer">
                     Cambiar estado
                   </button>}
@@ -164,7 +168,7 @@ export default function HerramientasPage() {
       {/* ── CATÁLOGO ── */}
       {subview === 'catalogo' && (
         <div className="grid md:grid-cols-5 gap-8">
-          {isAdmin && <div className="md:col-span-2">
+          {canCatalog && <div className="md:col-span-2">
             <div className="border border-[#222] p-5 sticky top-6">
               <div className="text-xs text-[#555] uppercase tracking-widest mb-1">{editingId ? 'Editando' : 'Nueva herramienta'}</div>
               <h3 className="text-lg font-bold text-white mb-5">{editingId ? tools.find(t => t.id === editingId)?.name : 'Agregar'}</h3>
@@ -210,11 +214,11 @@ export default function HerramientasPage() {
             </div>
           </div>}
 
-          <div className={isAdmin ? 'md:col-span-3' : 'md:col-span-5'}>
+          <div className={canCatalog ? 'md:col-span-3' : 'md:col-span-5'}>
             <div className="flex items-end justify-between mb-4">
               <div>
                 <div className="text-xs text-[#444]">{tools.length} registros</div>
-                {!isAdmin && <div className="text-xs text-[#FFB800] mt-2">Solo el usuario administrador puede modificar el catálogo.</div>}
+                {!canCatalog && <div className="text-xs text-[#FFB800] mt-2">No tienes permisos para modificar el catálogo.</div>}
               </div>
             </div>
             {tools.length === 0 && <div className="border border-[#1a1a1a] p-10 text-center text-[#444] text-sm">Sin herramientas registradas.</div>}
@@ -234,9 +238,9 @@ export default function HerramientasPage() {
                         {t.serial && <p className="text-xs text-[#444] mt-0.5">S/N: {t.serial}</p>}
                         {t.notes && <p className="text-xs text-[#555] mt-0.5 truncate">{t.notes}</p>}
                       </div>
-                      {isAdmin && <div className="flex gap-1 shrink-0">
-                        <button onClick={() => isEditing ? openNew() : openEdit(t)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{isEditing ? 'Esc' : 'Editar'}</button>
-                        <button onClick={() => setDeleteConfirm(t.id)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer">Eliminar</button>
+                      {(canEdit || canDelete) && <div className="flex gap-1 shrink-0">
+                        {canEdit && <button onClick={() => isEditing ? openNew() : openEdit(t)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{isEditing ? 'Esc' : 'Editar'}</button>}
+                        {canDelete && <button onClick={() => setDeleteConfirm(t.id)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer">Eliminar</button>}
                       </div>}
                     </div>
                   </div>

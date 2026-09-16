@@ -1,5 +1,5 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useStore, formatDate, formatTime, isAdminUser, canManageUsers } from '../store'
+import { useStore, formatDate, formatTime, canAccess } from '../store'
 import { useState, useEffect } from 'react'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -49,6 +49,26 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/usuarios?section=profile', label: 'Mi perfil' },
     { to: '/usuarios?section=password', label: 'Cambiar contraseña' },
   ]
+  const canView = (to: string) => {
+    if (to === '/maquinas') return canAccess(currentUser, users, 'machines.summary')
+    if (to.includes('tab=registro')) return canAccess(currentUser, users, 'machines.register')
+    if (to.includes('tab=historial')) return canAccess(currentUser, users, 'machines.history')
+    if (to.includes('tab=catalogo')) return canAccess(currentUser, users, 'machines.catalog')
+    if (to.includes('view=panel')) return canAccess(currentUser, users, 'tools.panel')
+    if (to.includes('view=bitacora')) return canAccess(currentUser, users, 'tools.log')
+    if (to.includes('view=catalogo')) return canAccess(currentUser, users, 'tools.catalog')
+    if (to.includes('list=areas')) return canAccess(currentUser, users, 'lists.areas')
+    if (to.includes('list=stopTypes')) return canAccess(currentUser, users, 'lists.stopTypes')
+    if (to.includes('list=machineTypes')) return canAccess(currentUser, users, 'lists.machineTypes')
+    if (to.includes('list=toolTypes')) return canAccess(currentUser, users, 'lists.toolTypes')
+    if (to.includes('list=brands')) return canAccess(currentUser, users, 'lists.brands')
+    if (to.includes('section=permissions')) return canAccess(currentUser, users, 'users.permissions')
+    if (to.includes('section=roles')) return canAccess(currentUser, users, 'users.roles')
+    if (to.includes('section=list')) return canAccess(currentUser, users, 'users.list')
+    if (to.includes('section=profile')) return canAccess(currentUser, users, 'users.profile')
+    if (to.includes('section=password')) return canAccess(currentUser, users, 'users.password')
+    return false
+  }
   const pageTitle = location.pathname === '/herramientas' ? 'Herramientas' : location.pathname === '/listas' ? 'Añadir' : location.pathname === '/usuarios' ? 'Usuarios' : location.pathname === '/' ? 'Inicio' : 'Máquinas'
   const agregarOpen = expandedSection === 'anadir' || expandedSection === 'agregarMaquinas' || expandedSection === 'agregarHerramientas'
 
@@ -67,21 +87,21 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="w-5 text-center text-sm font-bold" aria-hidden="true">⌂</span><span>Inicio</span>
           </NavLink>
 
-          <button onClick={() => setExpandedSection(expandedSection === 'maquinas' ? null : 'maquinas')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/maquinas' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
+          {machineSubmenu.some(item => canView(item.to)) && <button onClick={() => setExpandedSection(expandedSection === 'maquinas' ? null : 'maquinas')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/maquinas' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
             <span className="w-5 text-center text-sm font-bold" aria-hidden="true">▦</span><span className="flex-1 text-left">Máquinas</span><span>{expandedSection === 'maquinas' ? '−' : '+'}</span>
-          </button>
+          </button>}
           {expandedSection === 'maquinas' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
-            {machineSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+            {machineSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
           </div>}
 
-          <button onClick={() => setExpandedSection(expandedSection === 'herramientas' ? null : 'herramientas')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/herramientas' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
+          {toolSubmenu.some(item => canView(item.to)) && <button onClick={() => setExpandedSection(expandedSection === 'herramientas' ? null : 'herramientas')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/herramientas' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
             <span className="w-5 text-center text-sm font-bold" aria-hidden="true">⚙</span><span className="flex-1 text-left">Herramientas</span><span>{expandedSection === 'herramientas' ? '−' : '+'}</span>
-          </button>
+          </button>}
           {expandedSection === 'herramientas' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
-            {toolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+            {toolSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
           </div>}
 
-          {isAdminUser(currentUser) && <>
+          {(addMachineSubmenu.some(item => canView(item.to)) || addToolSubmenu.some(item => canView(item.to)) || addSubmenu.some(item => canView(item.to))) && <>
             <button onClick={() => setExpandedSection(agregarOpen ? null : 'anadir')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/listas' || (location.pathname === '/maquinas' && location.search === '?tab=catalogo') || (location.pathname === '/herramientas' && location.search === '?view=catalogo') ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
               <span className="w-5 text-center text-sm font-bold" aria-hidden="true">＋</span><span className="flex-1 text-left">Añadir</span><span>{agregarOpen ? '−' : '+'}</span>
             </button>
@@ -90,24 +110,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="flex-1">Máquinas</span><span>{expandedSection === 'agregarMaquinas' ? '−' : '+'}</span>
               </button>
               {expandedSection === 'agregarMaquinas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
-                {addMachineSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+                {addMachineSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
               </div>}
               <button onClick={() => setExpandedSection(expandedSection === 'agregarHerramientas' ? 'anadir' : 'agregarHerramientas')} className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wider text-left text-[#666] hover:text-white transition-colors">
                 <span className="flex-1">Herramientas</span><span>{expandedSection === 'agregarHerramientas' ? '−' : '+'}</span>
               </button>
               {expandedSection === 'agregarHerramientas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
-                {addToolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+                {addToolSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
               </div>}
-              {addSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+              {addSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
             </div>}
           </>}
 
-          {canManageUsers(currentUser, users) && <>
+          {userSubmenu.some(item => canView(item.to)) && <>
             <button onClick={() => setExpandedSection(expandedSection === 'usuarios' ? null : 'usuarios')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/usuarios' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
               <span className="w-5 text-center text-sm font-bold" aria-hidden="true">♙</span><span className="flex-1 text-left">Usuarios</span><span>{expandedSection === 'usuarios' ? '−' : '+'}</span>
             </button>
             {expandedSection === 'usuarios' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
-              {userSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+              {userSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
             </div>}
           </>}
         </nav>

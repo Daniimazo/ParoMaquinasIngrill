@@ -1,13 +1,16 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useStore, formatDate, formatTime, formatDuration, canResolveStop, isAdminUser } from '../store'
+import { useStore, formatDate, formatTime, formatDuration, canResolveStop, canAccess } from '../store'
 import type { Machine } from '../store'
 
 type Tab = 'panel' | 'registro' | 'historial' | 'catalogo'
 
 export default function MaquinasPage() {
-  const { machines, setMachines, events, setEvents, currentUser, ticker: _ticker, lists } = useStore()
-  const isAdmin = isAdminUser(currentUser)
+  const { machines, setMachines, events, setEvents, currentUser, users, ticker: _ticker, lists } = useStore()
+  const canCreateMachine = canAccess(currentUser, users, 'machines.catalog', 'create')
+  const canEditMachine = canAccess(currentUser, users, 'machines.catalog', 'edit')
+  const canDeleteMachine = canAccess(currentUser, users, 'machines.catalog', 'delete')
+  const canManageCatalog = canCreateMachine || canEditMachine || canDeleteMachine
   const [tab, setTab] = useState<Tab>('panel')
   const [searchParams] = useSearchParams()
   const [selectedMachineId, setSelectedMachineId] = useState(machines[0]?.id ?? '')
@@ -146,15 +149,15 @@ export default function MaquinasPage() {
   const [formError, setFormError] = useState('')
 
   function openNew() {
-    if (!isAdmin) return
+    if (!canCreateMachine && !canEditMachine) return
     setEditingId(null); setForm({ type: '', number: '', area: '', notes: '' }); setFormError('')
   }
   function openEdit(m: Machine) {
-    if (!isAdmin) return
+    if (!canEditMachine) return
     setEditingId(m.id); setForm({ type: m.type, number: m.number, area: m.area, notes: m.notes }); setFormError('')
   }
   function saveMachine() {
-    if (!isAdmin) return
+    if (editingId ? !canEditMachine : !canCreateMachine) return
     const type = form.type.trim().toUpperCase()
     const number = form.number.trim().padStart(2, '0')
     const name = `${type}-${number}`
@@ -170,7 +173,7 @@ export default function MaquinasPage() {
     openNew()
   }
   function removeMachine(id: string) {
-    if (!isAdmin) return
+    if (!canDeleteMachine) return
     setMachines(prev => prev.filter(m => m.id !== id))
     setDeleteConfirm(null)
     if (editingId === id) openNew()
@@ -351,7 +354,7 @@ export default function MaquinasPage() {
       {/* ── CATÁLOGO ── */}
       {tab === 'catalogo' && (
         <div className="grid md:grid-cols-5 gap-8">
-          {isAdmin && <div className="md:col-span-2">
+          {canManageCatalog && <div className="md:col-span-2">
             <div className="border border-[#222] p-5 sticky top-6">
               <div className="text-xs text-[#555] uppercase tracking-widest mb-1">{editingId ? 'Editando' : 'Nueva máquina'}</div>
               <h3 className="text-lg font-bold text-white mb-5">{editingId ? machines.find(m => m.id === editingId)?.name : 'Agregar'}</h3>
@@ -391,11 +394,11 @@ export default function MaquinasPage() {
             </div>
           </div>}
 
-          <div className={isAdmin ? 'md:col-span-3' : 'md:col-span-5'}>
+          <div className={canManageCatalog ? 'md:col-span-3' : 'md:col-span-5'}>
             <div className="flex items-end justify-between mb-4">
               <div>
                 <div className="text-xs text-[#444]">{machines.length} registros</div>
-                {!isAdmin && <div className="text-xs text-[#FFB800] mt-2">Solo el usuario administrador puede modificar el catálogo.</div>}
+                {!canManageCatalog && <div className="text-xs text-[#FFB800] mt-2">No tienes permisos para modificar el catálogo.</div>}
               </div>
             </div>
             {machines.length === 0 && <div className="border border-[#1a1a1a] p-10 text-center text-[#444] text-sm">Sin máquinas registradas.</div>}
@@ -415,9 +418,9 @@ export default function MaquinasPage() {
                         </div>
                         {m.notes && <p className="text-xs text-[#555] mt-1 truncate">{m.notes}</p>}
                       </div>
-                      {isAdmin && <div className="flex gap-1 shrink-0">
-                        <button onClick={() => isEditing ? openNew() : openEdit(m)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{isEditing ? 'Esc' : 'Editar'}</button>
-                        <button onClick={() => setDeleteConfirm(m.id)} disabled={isDown} title={isDown ? 'Máquina en paro activo' : ''} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Eliminar</button>
+                      {canManageCatalog && <div className="flex gap-1 shrink-0">
+                        {canEditMachine && <button onClick={() => isEditing ? openNew() : openEdit(m)} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-white hover:border-white transition-all cursor-pointer">{isEditing ? 'Esc' : 'Editar'}</button>}
+                        {canDeleteMachine && <button onClick={() => setDeleteConfirm(m.id)} disabled={isDown} title={isDown ? 'Máquina en paro activo' : ''} className="px-3 py-1.5 text-xs border border-[#333] text-[#666] hover:text-[#FF2D00] hover:border-[#FF2D00]/50 transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">Eliminar</button>}
                       </div>}
                     </div>
                   </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { useStore, canManageUsers } from '../store'
+import { useStore, canAccess, canManageUsers, PERMISSION_ACTIONS } from '../store'
 import type { AppUser, Permission, UserRole } from '../store'
 
 type UserSection = 'permissions' | 'roles' | 'list' | 'profile' | 'password'
@@ -26,13 +26,14 @@ export default function UsuariosPage() {
   const [selectedId, setSelectedId] = useState(users.find(user => user.username === currentUser)?.id ?? '')
   const [form, setForm] = useState({ username: '', password: '', role: 'operador' as UserRole })
   const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' })
-  const [permissionForm, setPermissionForm] = useState({ key: '', label: '', description: '' })
-  const [showPermissionForm, setShowPermissionForm] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
-  const canManage = canManageUsers(currentUser, users)
-  const canEditPermissions = currentUser === 'admin' || users.find(user => user.username === currentUser)?.permissions.includes('users.permissions') === true
+    const canManage = canManageUsers(currentUser, users)
+    const canCreateUser = canAccess(currentUser, users, 'users.list', 'create')
+    const canEditUser = canAccess(currentUser, users, 'users.list', 'edit')
+    const canDeleteUser = canAccess(currentUser, users, 'users.list', 'delete')
+  const canEditPermissions = canAccess(currentUser, users, 'users.permissions', 'edit')
   const selectedUser = users.find(user => user.id === selectedId)
   const currentAccount = users.find(user => user.username === currentUser)
 
@@ -55,7 +56,7 @@ export default function UsuariosPage() {
   }
 
   function saveUser() {
-    if (!canManage) return
+    if (selectedId ? !canEditUser : !canCreateUser) return
     const username = form.username.trim().toLowerCase()
     if (!username || !form.password) { setError('Usuario y contraseña son obligatorios.'); return }
     if (users.some(user => user.username === username && user.id !== selectedId)) { setError('Ese usuario ya existe.'); return }
@@ -76,7 +77,7 @@ export default function UsuariosPage() {
   }
 
   function toggleActive(user: AppUser) {
-    if (!canManage || user.username === 'admin') return
+    if (!canEditUser || user.username === 'admin') return
     setUsers(previous => previous.map(item => item.id === user.id ? { ...item, active: !item.active } : item))
   }
 
@@ -85,20 +86,6 @@ export default function UsuariosPage() {
     setUsers(previous => previous.map(item => item.id === user.id
       ? { ...item, permissions: item.permissions.includes(permission) ? item.permissions.filter(value => value !== permission) : [...item.permissions, permission] }
       : item))
-  }
-
-  function addPermission() {
-    if (!canEditPermissions) return
-    const key = permissionForm.key.trim().toLowerCase().replace(/\s+/g, '.')
-    const label = permissionForm.label.trim()
-    const description = permissionForm.description.trim()
-    if (!key || !label) { setError('Clave y nombre del permiso son obligatorios.'); return }
-    if (availablePermissions.some(permission => permission.key === key)) { setError('La clave de permiso ya existe.'); return }
-    setAvailablePermissions(previous => [...previous, { key, label, description }])
-    setPermissionForm({ key: '', label: '', description: '' })
-    setShowPermissionForm(false)
-    setError('')
-    setMessage('Permiso agregado.')
   }
 
   function changePassword() {
@@ -130,21 +117,23 @@ export default function UsuariosPage() {
       {section === 'permissions' && (
         <section className="space-y-5">
           <div className="border border-[#292929] bg-[#0d0d0d]">
-            <div className="flex items-center justify-between border-b border-[#292929] px-4 py-3">
-              <div className="text-xs uppercase tracking-wider text-[#aaa]">Permisos disponibles</div>
-              {canEditPermissions && <button onClick={() => { setShowPermissionForm(previous => !previous); setError('') }} className="border border-[#FFB800] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#FFB800] hover:bg-[#FFB800] hover:text-black cursor-pointer">{showPermissionForm ? 'Cancelar' : 'Agregar permiso'}</button>}
+            <div className="border-b border-[#292929] px-4 py-3 text-xs uppercase tracking-wider text-[#aaa]">Permisos fijos por usuario</div>
+            <div className="divide-y divide-[#222]">
+              {users.map(user => <div key={user.id} className="px-4 py-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><span className="font-bold text-white">{user.username}</span><span className="text-[10px] uppercase tracking-wider text-[#888]">{ROLE_LABELS[user.role]}</span></div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {availablePermissions.map(permission => <div key={permission.key} className="border border-[#252525] p-3">
+                    <div className="mb-2 text-xs font-bold text-white">{permission.label}</div>
+                    <div className="grid grid-cols-4 gap-1">
+                      {PERMISSION_ACTIONS.map(action => {
+                        const key = `${permission.key.split('.').slice(0, -1).join('.')}.${action.key}`
+                        return <label key={action.key} className="flex flex-col items-center gap-1 text-[9px] uppercase text-[#777]"><input type="checkbox" checked={user.role === 'admin' || user.permissions.includes(key as Permission)} disabled={user.role === 'admin' || !canEditPermissions} onChange={() => togglePermission(user, key as Permission)} className="accent-[#FFB800]" />{action.label}</label>
+                      })}
+                    </div>
+                  </div>)}
+                </div>
+              </div>)}
             </div>
-            {showPermissionForm && <div className="grid gap-3 border-b border-[#292929] p-4 md:grid-cols-3"><input value={permissionForm.key} onChange={event => setPermissionForm(previous => ({ ...previous, key: event.target.value }))} placeholder="Clave: reports.view" className="border border-[#333] bg-[#080808] px-3 py-2.5 text-xs text-white outline-none" /><input value={permissionForm.label} onChange={event => setPermissionForm(previous => ({ ...previous, label: event.target.value }))} placeholder="Nombre del permiso" className="border border-[#333] bg-[#080808] px-3 py-2.5 text-xs text-white outline-none" /><div className="flex gap-2"><input value={permissionForm.description} onChange={event => setPermissionForm(previous => ({ ...previous, description: event.target.value }))} placeholder="Descripción" className="min-w-0 flex-1 border border-[#333] bg-[#080808] px-3 py-2.5 text-xs text-white outline-none" /><button onClick={addPermission} className="bg-white px-3 py-2 text-[10px] font-bold uppercase text-black cursor-pointer">Guardar</button></div></div>}
-            <div className="divide-y divide-[#222]">{availablePermissions.map(permission => <div key={permission.key} className="px-4 py-4"><div className="font-bold text-white">{permission.label}</div><div className="mt-1 text-[10px] uppercase tracking-wider text-[#FFB800]">{permission.key}</div>{permission.description && <div className="mt-1 text-xs text-[#666]">{permission.description}</div>}</div>)}</div>
-          </div>
-          <div className="border border-[#292929] bg-[#0d0d0d]">
-          <div className="border-b border-[#292929] px-4 py-3 text-xs uppercase tracking-wider text-[#aaa]">Asignar permisos por usuario</div>
-          <div className="divide-y divide-[#222]">
-            {users.map(user => <div key={user.id} className="px-4 py-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3"><span className="font-bold text-white">{user.username}</span><span className="text-[10px] uppercase tracking-wider text-[#888]">{ROLE_LABELS[user.role]}</span></div>
-              <div className="grid gap-2 sm:grid-cols-2">{availablePermissions.map(permission => <label key={permission.key} className="flex items-start gap-3 border border-[#252525] p-3 text-xs text-[#aaa]"><input type="checkbox" checked={user.role === 'admin' || user.permissions.includes(permission.key)} disabled={user.role === 'admin' || !canEditPermissions} onChange={() => togglePermission(user, permission.key)} className="mt-0.5 accent-[#FFB800]" /><span><span className="block text-white">{permission.label}</span><span className="mt-1 block text-[10px] text-[#666]">{permission.description}</span></span></label>)}</div>
-            </div>)}
-          </div>
           </div>
         </section>
       )}
