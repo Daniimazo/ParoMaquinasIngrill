@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useStore, formatDate, formatTime, formatDuration, canResolveStop, isAdminUser } from '../store'
 import type { Machine } from '../store'
 
-type Tab = 'panel' | 'activos' | 'registro' | 'historial' | 'catalogo'
+type Tab = 'panel' | 'registro' | 'historial' | 'catalogo'
 
 export default function MaquinasPage() {
   const { machines, setMachines, events, setEvents, currentUser, ticker: _ticker, lists } = useStore()
@@ -20,12 +20,23 @@ export default function MaquinasPage() {
   const preventiveMachineNames = new Set(activeEvents.filter(e => e.description === 'Mantenimiento Preventivo').map(e => e.machine))
   const preventiveMachines = preventiveMachineNames.size
   const machinesStopped = machinesDown - preventiveMachines
+  const orderedMachines = [...machines].sort((first, second) => {
+    const firstEvent = activeEvents.find(event => event.machine === first.name)
+    const secondEvent = activeEvents.find(event => event.machine === second.name)
+    const firstPriority = !firstEvent ? 2 : firstEvent.description === 'Mantenimiento Preventivo' ? 1 : 0
+    const secondPriority = !secondEvent ? 2 : secondEvent.description === 'Mantenimiento Preventivo' ? 1 : 0
+    return firstPriority - secondPriority
+  })
   const selectedMachine = machines.find(machine => machine.id === selectedMachineId) ?? machines[0]
   const selectedEvent = selectedMachine ? activeEvents.find(event => event.machine === selectedMachine.name) : undefined
 
   useEffect(() => {
     const requestedTab = searchParams.get('tab') as Tab | null
-    if (requestedTab && ['panel', 'activos', 'registro', 'historial', 'catalogo'].includes(requestedTab)) setTab(requestedTab)
+    if (!requestedTab) {
+      setTab('panel')
+      return
+    }
+    if (['panel', 'registro', 'historial', 'catalogo'].includes(requestedTab)) setTab(requestedTab)
   }, [searchParams])
 
   useEffect(() => {
@@ -82,7 +93,7 @@ export default function MaquinasPage() {
       startTime: new Date(), endTime: null, solution: null,
       status: 'down', reportedBy: currentUser, resolvedBy: null,
     }, ...prev])
-    setNewDesc(lists.stopTypes[0] ?? ''); setCustomMachine(''); setTab('activos')
+    setNewDesc(lists.stopTypes[0] ?? ''); setCustomMachine(''); setTab('panel')
   }
 
   // ── Resolve stop ──
@@ -198,7 +209,7 @@ export default function MaquinasPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#202020]">
-                {machines.map(machine => {
+                {orderedMachines.map(machine => {
                   const event = activeEvents.find(item => item.machine === machine.name)
                   const isPreventive = event?.description === 'Mantenimiento Preventivo'
                   const status = event ? (isPreventive ? 'PREVENTIVO' : 'EN PARO') : 'PRODUCCIÓN'
@@ -237,39 +248,6 @@ export default function MaquinasPage() {
             </section>
           )}
         </div>
-      )}
-
-      {/* ── PAROS ACTIVOS ── */}
-      {tab === 'activos' && (
-        activeEvents.length === 0 ? (
-          <div className="border border-[#222] p-14 text-center">
-            <div className="text-4xl mb-3">✓</div>
-            <div className="text-sm text-[#00E87A] uppercase tracking-widest">Sin paros activos</div>
-            <div className="text-xs text-[#444] mt-1">Todas las máquinas en producción</div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {activeEvents.map(ev => (
-              <div key={ev.id} className="border border-[#FF2D00]/40 bg-[#FF2D00]/5 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <span className="text-xs bg-[#FF2D00] text-white px-2 py-0.5 font-bold tracking-wider">{ev.machine}</span>
-                    <span className="text-xs text-[#FF6B50] font-mono blink">● {formatDuration(ev.startTime, null)}</span>
-                  </div>
-                  <p className="text-sm text-[#aaa] mb-2">{ev.description}</p>
-                  <div className="flex flex-wrap gap-x-4 text-xs text-[#555]">
-                    <span>Inicio: {formatDate(ev.startTime)} {formatTime(ev.startTime)}</span>
-                    <span>Reportó: <span className="text-[#777] uppercase">{ev.reportedBy}</span></span>
-                  </div>
-                </div>
-                <button onClick={() => requestResolve(ev)}
-                  className="shrink-0 px-4 py-2 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
-                  Levantar Paro
-                </button>
-              </div>
-            ))}
-          </div>
-        )
       )}
 
       {/* ── REGISTRO ── */}

@@ -48,6 +48,24 @@ export interface ToolLog {
   at: Date
 }
 
+export type UserRole = 'admin' | 'supervisor' | 'operador'
+export type Permission = string
+
+export interface AppUser {
+  id: string
+  username: string
+  password: string
+  role: UserRole
+  permissions: Permission[]
+  active: boolean
+}
+
+export interface AvailablePermission {
+  key: Permission
+  label: string
+  description: string
+}
+
 // ─── CONSTANTS ───────────────────────────────────────────────────────────────
 
 export const TOOL_STATUS_LABEL: Record<ToolStatus, string> = {
@@ -161,6 +179,17 @@ const INITIAL_TOOL_LOGS: ToolLog[] = [
   { id: 'tl3', toolId: 't2', toolName: 'Taladro de Banco', from: 'stored', to: 'in_use', note: 'En uso por operador Martínez, área CNC', at: new Date(Date.now() - 3600000 * 1.5) },
 ]
 
+const INITIAL_USERS: AppUser[] = [
+  { id: 'u1', username: 'admin', password: 'admin123', role: 'admin', permissions: ['users.manage', 'users.permissions'], active: true },
+  { id: 'u2', username: 'supervisor', password: 'sup2024', role: 'supervisor', permissions: [], active: true },
+  { id: 'u3', username: 'operador', password: 'op1234', role: 'operador', permissions: [], active: true },
+]
+
+const INITIAL_PERMISSIONS: AvailablePermission[] = [
+  { key: 'users.manage', label: 'Administrar usuarios', description: 'Crear, editar, activar y desactivar cuentas.' },
+  { key: 'users.permissions', label: 'Administrar permisos', description: 'Asignar permisos a otros usuarios.' },
+]
+
 // ─── CONTEXT ─────────────────────────────────────────────────────────────────
 
 interface AppStore {
@@ -169,6 +198,10 @@ interface AppStore {
   login: (user: string, pass: string) => boolean
   logout: () => void
   currentUser: string
+  users: AppUser[]
+  setUsers: React.Dispatch<React.SetStateAction<AppUser[]>>
+  availablePermissions: AvailablePermission[]
+  setAvailablePermissions: React.Dispatch<React.SetStateAction<AvailablePermission[]>>
 
   // Editable catalog lists
   lists: {
@@ -198,15 +231,11 @@ interface AppStore {
 
 const StoreContext = createContext<AppStore | null>(null)
 
-const DEMO_USERS: Record<string, string> = {
-  admin: 'admin123',
-  supervisor: 'sup2024',
-  operador: 'op1234',
-}
-
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
+  const [users, setUsers] = useState<AppUser[]>(INITIAL_USERS)
+  const [availablePermissions, setAvailablePermissions] = useState<AvailablePermission[]>(INITIAL_PERMISSIONS)
   const [lists, setLists] = useState<AppStore['lists']>({
     areas: [...TOOL_AREAS],
     machineTypes: [...MACHINE_TYPES],
@@ -226,9 +255,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   function login(user: string, pass: string): boolean {
-    if (DEMO_USERS[user.toLowerCase()] === pass) {
+    const account = users.find(item => item.username === user.toLowerCase() && item.password === pass && item.active)
+    if (account) {
       setIsLoggedIn(true)
-      setCurrentUser(user.toLowerCase())
+      setCurrentUser(account.username)
       return true
     }
     return false
@@ -240,7 +270,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, lists, setLists, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
+    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, users, setUsers, availablePermissions, setAvailablePermissions, lists, setLists, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
       {children}
     </StoreContext.Provider>
   )
@@ -258,6 +288,11 @@ export function canResolveStop(event: Pick<StopEvent, 'reportedBy'>, currentUser
 
 export function isAdminUser(currentUser: string): boolean {
   return currentUser === 'admin'
+}
+
+export function canManageUsers(currentUser: string, users: AppUser[]): boolean {
+  const account = users.find(user => user.username === currentUser)
+  return currentUser === 'admin' || account?.permissions.includes('users.manage') === true
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────────────────

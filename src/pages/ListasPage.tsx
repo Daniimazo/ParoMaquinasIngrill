@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useStore, isAdminUser } from '../store'
 
 type ListKey = 'areas' | 'machineTypes' | 'toolTypes' | 'brands' | 'stopTypes'
@@ -14,6 +15,7 @@ const LIST_INFO: { key: ListKey; label: string }[] = [
 export default function ListasPage() {
   const { currentUser, lists, setLists } = useStore()
   const isAdmin = isAdminUser(currentUser)
+  const [searchParams] = useSearchParams()
   const [selectedList, setSelectedList] = useState<ListKey>('areas')
   const [value, setValue] = useState('')
   const [editingValue, setEditingValue] = useState<string | null>(null)
@@ -23,15 +25,20 @@ export default function ListasPage() {
   const selectedInfo = LIST_INFO.find(item => item.key === selectedList) ?? LIST_INFO[0]
   const selectedValues = lists[selectedList]
 
+  useEffect(() => {
+    const requestedList = searchParams.get('list') as ListKey | null
+    if (requestedList && LIST_INFO.some(item => item.key === requestedList)) {
+      setSelectedList(requestedList)
+      setValue('')
+      setEditingValue(null)
+      setError('')
+    }
+  }, [searchParams])
+
   function resetForm() {
     setValue('')
     setEditingValue(null)
     setError('')
-  }
-
-  function selectList(key: ListKey) {
-    setSelectedList(key)
-    resetForm()
   }
 
   function save() {
@@ -75,17 +82,8 @@ export default function ListasPage() {
     <div>
       <div className="mb-6">
         <div className="text-xs text-[#555] uppercase tracking-widest mb-1">Administración</div>
-        <h1 className="text-3xl font-extrabold text-white">Listas</h1>
+        <h1 className="text-3xl font-extrabold text-white">Añadir</h1>
         <p className="text-sm text-[#666] mt-2">Administra las opciones disponibles en máquinas, herramientas y paros.</p>
-      </div>
-
-      <div className="flex gap-1 flex-wrap mb-8 pb-6 border-b border-[#1a1a1a]">
-        {LIST_INFO.map(item => (
-          <button key={item.key} onClick={() => selectList(item.key)}
-            className={`px-4 py-2 text-xs uppercase tracking-widest font-semibold border transition-all cursor-pointer ${selectedList === item.key ? 'bg-white text-black border-white' : 'border-[#222] text-[#555] hover:text-[#aaa] hover:border-[#444]'}`}>
-            {item.label}
-          </button>
-        ))}
       </div>
 
       <div className="grid md:grid-cols-5 gap-8">

@@ -1,14 +1,14 @@
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import { useStore, formatDate, formatTime, isAdminUser } from '../store'
+import { useStore, formatDate, formatTime, isAdminUser, canManageUsers } from '../store'
 import { useState, useEffect } from 'react'
 
 export default function Layout({ children }: { children: React.ReactNode }) {
-  const { logout, currentUser } = useStore()
+  const { logout, currentUser, users } = useStore()
   const navigate = useNavigate()
   const location = useLocation()
   const [now, setNow] = useState(new Date())
   const [menuOpen, setMenuOpen] = useState(false)
-  const [expandedSection, setExpandedSection] = useState<'maquinas' | 'herramientas' | null>(null)
+  const [expandedSection, setExpandedSection] = useState<'maquinas' | 'herramientas' | 'anadir' | 'agregarMaquinas' | 'agregarHerramientas' | 'usuarios' | null>(null)
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
@@ -22,17 +22,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const machineSubmenu = [
     { to: '/maquinas', label: 'Resumen' },
-    { to: '/maquinas?tab=activos', label: 'Paros activos' },
     { to: '/maquinas?tab=registro', label: 'Registrar paro' },
     { to: '/maquinas?tab=historial', label: 'Historial' },
-    ...(isAdminUser(currentUser) ? [{ to: '/maquinas?tab=catalogo', label: 'Catálogo' }] : []),
   ]
   const toolSubmenu = [
-    { to: '/herramientas', label: 'Panel' },
-    { to: '/herramientas?view=catalogo', label: 'Catálogo' },
+    { to: '/herramientas?view=panel', label: 'Panel' },
     { to: '/herramientas?view=bitacora', label: 'Bitácora' },
   ]
-  const pageTitle = location.pathname === '/herramientas' ? 'Herramientas' : location.pathname === '/listas' ? 'Listas' : location.pathname === '/' ? 'Inicio' : 'Máquinas'
+  const addSubmenu = [
+    { to: '/listas?list=areas', label: 'Añadir área' },
+    { to: '/listas?list=stopTypes', label: 'Añadir tipo de paro' },
+  ]
+  const addMachineSubmenu = [
+    { to: '/maquinas?tab=catalogo', label: 'Añadir máquina' },
+    { to: '/listas?list=machineTypes', label: 'Añadir tipo de máquina' },
+  ]
+  const addToolSubmenu = [
+    { to: '/herramientas?view=catalogo', label: 'Añadir herramienta' },
+    { to: '/listas?list=toolTypes', label: 'Añadir tipo de herramienta' },
+    { to: '/listas?list=brands', label: 'Añadir marca' },
+  ]
+  const userSubmenu = [
+    { to: '/usuarios?section=permissions', label: 'Permisos' },
+    { to: '/usuarios?section=roles', label: 'Roles' },
+    { to: '/usuarios?section=list', label: 'Lista de usuarios' },
+    { to: '/usuarios?section=profile', label: 'Mi perfil' },
+    { to: '/usuarios?section=password', label: 'Cambiar contraseña' },
+  ]
+  const pageTitle = location.pathname === '/herramientas' ? 'Herramientas' : location.pathname === '/listas' ? 'Añadir' : location.pathname === '/usuarios' ? 'Usuarios' : location.pathname === '/' ? 'Inicio' : 'Máquinas'
+  const agregarOpen = expandedSection === 'anadir' || expandedSection === 'agregarMaquinas' || expandedSection === 'agregarHerramientas'
 
   return (
     <div className="min-h-screen bg-[#080808] text-[#e8e8e8]">
@@ -63,9 +81,35 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             {toolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
           </div>}
 
-          {isAdminUser(currentUser) && <NavLink to="/listas" onClick={() => setMenuOpen(false)} className={({ isActive }) => `flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${isActive ? 'bg-[#191919] text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
-            <span className="w-5 text-center text-sm font-bold" aria-hidden="true">☷</span><span>Listas</span>
-          </NavLink>}
+          {isAdminUser(currentUser) && <>
+            <button onClick={() => setExpandedSection(agregarOpen ? null : 'anadir')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/listas' || (location.pathname === '/maquinas' && location.search === '?tab=catalogo') || (location.pathname === '/herramientas' && location.search === '?view=catalogo') ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
+              <span className="w-5 text-center text-sm font-bold" aria-hidden="true">＋</span><span className="flex-1 text-left">Añadir</span><span>{agregarOpen ? '−' : '+'}</span>
+            </button>
+            {agregarOpen && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
+              <button onClick={() => setExpandedSection(expandedSection === 'agregarMaquinas' ? 'anadir' : 'agregarMaquinas')} className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wider text-left text-[#666] hover:text-white transition-colors">
+                <span className="flex-1">Máquinas</span><span>{expandedSection === 'agregarMaquinas' ? '−' : '+'}</span>
+              </button>
+              {expandedSection === 'agregarMaquinas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
+                {addMachineSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+              </div>}
+              <button onClick={() => setExpandedSection(expandedSection === 'agregarHerramientas' ? 'anadir' : 'agregarHerramientas')} className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wider text-left text-[#666] hover:text-white transition-colors">
+                <span className="flex-1">Herramientas</span><span>{expandedSection === 'agregarHerramientas' ? '−' : '+'}</span>
+              </button>
+              {expandedSection === 'agregarHerramientas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
+                {addToolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+              </div>}
+              {addSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+            </div>}
+          </>}
+
+          {canManageUsers(currentUser, users) && <>
+            <button onClick={() => setExpandedSection(expandedSection === 'usuarios' ? null : 'usuarios')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/usuarios' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
+              <span className="w-5 text-center text-sm font-bold" aria-hidden="true">♙</span><span className="flex-1 text-left">Usuarios</span><span>{expandedSection === 'usuarios' ? '−' : '+'}</span>
+            </button>
+            {expandedSection === 'usuarios' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
+              {userSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+            </div>}
+          </>}
         </nav>
         <div className="p-4 border-t border-[#252525]">
           <div className="text-[10px] text-[#555] uppercase tracking-widest">Sesión activa</div>
@@ -78,11 +122,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-h-screen">
-        <header className="relative h-[86px] border-b border-[#252525] px-5 sm:px-8 pl-16 flex items-center justify-between gap-4 bg-[#0a0a0a]">
-          <button aria-label="Abrir menú" onClick={() => setMenuOpen(true)} className="absolute left-5 top-6 text-xl text-[#aaa] hover:text-white cursor-pointer">☰</button>
-          <div>
+        <header className="h-[86px] border-b border-[#252525] px-5 sm:px-8 flex items-center justify-between gap-4 bg-[#0a0a0a]">
+          <div className="flex min-w-0 items-center gap-4">
+            <button aria-label="Abrir menú" onClick={() => setMenuOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#333] text-lg leading-none text-[#aaa] hover:border-[#777] hover:text-white cursor-pointer">☰</button>
+            <div className="min-w-0">
             <div className="text-[10px] text-[#666] uppercase tracking-[0.2em]">CONTROL DE PLANTA</div>
             <h1 className="text-xl font-bold text-white mt-1">{pageTitle}</h1>
+            </div>
           </div>
           <div className="text-right">
             <div className="text-[10px] text-[#555] uppercase tracking-widest">Fecha de operación</div>
