@@ -23,11 +23,10 @@ export default function ListasPage() {
 
   const selectedInfo = LIST_INFO.find(item => item.key === selectedList) ?? LIST_INFO[0]
   const selectedValues = lists[selectedList]
-  const resource = `lists.${selectedList}` as 'lists.areas' | 'lists.machineTypes' | 'lists.toolTypes' | 'lists.brands' | 'lists.stopTypes'
-  const canView = canAccess(currentUser, users, resource)
-  const canCreate = canAccess(currentUser, users, resource, 'create')
-  const canEdit = canAccess(currentUser, users, resource, 'edit')
-  const canDelete = canAccess(currentUser, users, resource, 'delete')
+  const canView = canAccess(currentUser, users, 'add.catalog')
+  const canCreate = canView
+  const canEdit = canView
+  const canDelete = canView
 
   useEffect(() => {
     const requestedList = searchParams.get('list') as ListKey | null

@@ -7,10 +7,12 @@ type Tab = 'panel' | 'registro' | 'historial' | 'catalogo'
 
 export default function MaquinasPage() {
   const { machines, setMachines, events, setEvents, currentUser, users, ticker: _ticker, lists } = useStore()
-  const canCreateMachine = canAccess(currentUser, users, 'machines.catalog', 'create')
-  const canEditMachine = canAccess(currentUser, users, 'machines.catalog', 'edit')
-  const canDeleteMachine = canAccess(currentUser, users, 'machines.catalog', 'delete')
-  const canManageCatalog = canCreateMachine || canEditMachine || canDeleteMachine
+  const canViewMachineCatalog = canAccess(currentUser, users, 'add.catalog')
+  const canCreateMachine = canViewMachineCatalog
+  const canEditMachine = canViewMachineCatalog
+  const canDeleteMachine = canViewMachineCatalog
+  const canManageCatalog = canViewMachineCatalog
+  const canManageShift = canAccess(currentUser, users, 'machines.summary', 'shift')
   const [tab, setTab] = useState<Tab>('panel')
   const [searchParams] = useSearchParams()
   const [selectedMachineId, setSelectedMachineId] = useState(machines[0]?.id ?? '')
@@ -56,6 +58,7 @@ export default function MaquinasPage() {
   const isEndOfShift = activeEvents.some(e => e.description === 'Fin Turno')
 
   function toggleShift() {
+    if (!canManageShift) return
     if (isEndOfShift) {
       setEvents(prev => prev.map(event => event.status === 'down' && event.description === 'Fin Turno'
         ? { ...event, endTime: new Date(), solution: 'Inicio de turno', status: 'running', resolvedBy: currentUser }
@@ -117,7 +120,7 @@ export default function MaquinasPage() {
   }, [shiftMessage])
 
   function requestResolve(event: { id: string; reportedBy: string }) {
-    if (!canResolveStop(event, currentUser)) {
+    if (!canResolveStop(event, currentUser, users)) {
       setPermissionMessage('No puedes levantar este paro. Solo puede hacerlo quien lo registró o el admin.')
       return
     }
@@ -128,7 +131,7 @@ export default function MaquinasPage() {
 
   function resolveStop() {
     const event = events.find(e => e.id === solutionModal)
-    if (!solutionModal || !event || !canResolveStop(event, currentUser) || !solutionText.trim()) return
+    if (!solutionModal || !event || !canResolveStop(event, currentUser, users) || !solutionText.trim()) return
     setEvents(prev => prev.map(e => e.id === solutionModal
       ? { ...e, endTime: new Date(), solution: solutionText.trim(), status: 'running', resolvedBy: currentUser }
       : e))
@@ -193,9 +196,9 @@ export default function MaquinasPage() {
               <span className="text-[#FF2D00]">En paro: {machinesStopped}</span>
               <span className="text-[#FFB800]">Preventivo: {preventiveMachines}</span>
             </div>
-            <button onClick={toggleShift} className={`px-3 py-2 text-[11px] uppercase tracking-wider font-bold border transition-colors cursor-pointer ${isEndOfShift ? 'border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black' : 'border-[#FFB800] text-[#FFB800] hover:bg-[#FFB800] hover:text-black'}`}>
+            {canManageShift && <button onClick={toggleShift} className={`px-3 py-2 text-[11px] uppercase tracking-wider font-bold border transition-colors cursor-pointer ${isEndOfShift ? 'border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black' : 'border-[#FFB800] text-[#FFB800] hover:bg-[#FFB800] hover:text-black'}`}>
               {isEndOfShift ? 'Iniciar turno' : 'Finalizar turno'}
-            </button>
+            </button>}
           </div>
           {shiftMessage && <div className="border border-[#FFB800]/40 bg-[#FFB800]/5 px-4 py-3 text-xs text-[#FFB800]">{shiftMessage}</div>}
 
@@ -208,7 +211,6 @@ export default function MaquinasPage() {
                   <th className="px-4 py-3 font-medium">Estado</th>
                   <th className="px-4 py-3 font-medium">Tiempo de paro</th>
                   <th className="px-4 py-3 font-medium">Inicio</th>
-                  <th className="px-4 py-3 font-medium text-right">Acción</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#202020]">
@@ -223,7 +225,6 @@ export default function MaquinasPage() {
                       <td className={`px-4 py-3 font-bold ${isPreventive ? 'text-[#FFB800]' : event ? 'text-[#FF4A2F]' : 'text-[#00E87A]'}`}><span className="mr-2">●</span>{status}</td>
                       <td className={`px-4 py-3 font-mono ${event ? 'text-[#FF6B50]' : 'text-[#555]'}`}>{event ? formatDuration(event.startTime, null) : '--'}</td>
                       <td className="px-4 py-3 text-[#777]">{event ? formatTime(event.startTime) : '--'}</td>
-                      <td className="px-4 py-3 text-right"><button onClick={clickEvent => { clickEvent.stopPropagation(); setSelectedMachineId(machine.id) }} className="text-[#aaa] hover:text-white underline underline-offset-4 cursor-pointer">Ver</button></td>
                     </tr>
                   )
                 })}
@@ -324,19 +325,10 @@ export default function MaquinasPage() {
                     <div className="text-xs text-[#444] uppercase tracking-wider mb-1">Motivo</div>
                     <p className="text-sm text-[#bbb] leading-relaxed">{ev.description}</p>
                   </div>
-                  {ev.solution ? (
-                    <div>
-                      <div className="text-xs text-[#00E87A]/60 uppercase tracking-wider mb-1">Solución</div>
-                      <p className="text-sm text-[#bbb] leading-relaxed">{ev.solution}</p>
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <button onClick={() => requestResolve(ev)}
-                        className="px-4 py-2 text-xs uppercase tracking-widest font-bold border border-[#00E87A] text-[#00E87A] hover:bg-[#00E87A] hover:text-black transition-all cursor-pointer">
-                        Levantar Paro
-                      </button>
-                    </div>
-                  )}
+                  {ev.solution && <div>
+                    <div className="text-xs text-[#00E87A]/60 uppercase tracking-wider mb-1">Solución</div>
+                    <p className="text-sm text-[#bbb] leading-relaxed">{ev.solution}</p>
+                  </div>}
                 </div>
                 <div className="pt-3 border-t border-[#1a1a1a] flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#444]">
                   <span>Inicio: <span className="text-[#666]">{formatTime(ev.startTime)}</span></span>

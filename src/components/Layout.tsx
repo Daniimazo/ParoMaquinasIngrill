@@ -27,7 +27,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   ]
   const toolSubmenu = [
     { to: '/herramientas?view=panel', label: 'Panel' },
-    { to: '/herramientas?view=bitacora', label: 'Bitácora' },
+    { to: '/herramientas?view=bitacora', label: 'Historial de acciones' },
   ]
   const addSubmenu = [
     { to: '/listas?list=areas', label: 'Añadir área' },
@@ -46,27 +46,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
     { to: '/usuarios?section=permissions', label: 'Permisos' },
     { to: '/usuarios?section=roles', label: 'Roles' },
     { to: '/usuarios?section=list', label: 'Lista de usuarios' },
-    { to: '/usuarios?section=profile', label: 'Mi perfil' },
-    { to: '/usuarios?section=password', label: 'Cambiar contraseña' },
   ]
   const canView = (to: string) => {
     if (to === '/maquinas') return canAccess(currentUser, users, 'machines.summary')
-    if (to.includes('tab=registro')) return canAccess(currentUser, users, 'machines.register')
-    if (to.includes('tab=historial')) return canAccess(currentUser, users, 'machines.history')
-    if (to.includes('tab=catalogo')) return canAccess(currentUser, users, 'machines.catalog')
+    if (to.includes('tab=registro')) return true
+    if (to.includes('tab=historial')) return true
+    if (to.includes('tab=catalogo')) return canAccess(currentUser, users, 'add.catalog')
     if (to.includes('view=panel')) return canAccess(currentUser, users, 'tools.panel')
-    if (to.includes('view=bitacora')) return canAccess(currentUser, users, 'tools.log')
-    if (to.includes('view=catalogo')) return canAccess(currentUser, users, 'tools.catalog')
-    if (to.includes('list=areas')) return canAccess(currentUser, users, 'lists.areas')
-    if (to.includes('list=stopTypes')) return canAccess(currentUser, users, 'lists.stopTypes')
-    if (to.includes('list=machineTypes')) return canAccess(currentUser, users, 'lists.machineTypes')
-    if (to.includes('list=toolTypes')) return canAccess(currentUser, users, 'lists.toolTypes')
-    if (to.includes('list=brands')) return canAccess(currentUser, users, 'lists.brands')
-    if (to.includes('section=permissions')) return canAccess(currentUser, users, 'users.permissions')
-    if (to.includes('section=roles')) return canAccess(currentUser, users, 'users.roles')
-    if (to.includes('section=list')) return canAccess(currentUser, users, 'users.list')
-    if (to.includes('section=profile')) return canAccess(currentUser, users, 'users.profile')
-    if (to.includes('section=password')) return canAccess(currentUser, users, 'users.password')
+    if (to.includes('view=bitacora')) return true
+    if (to.includes('view=catalogo')) return canAccess(currentUser, users, 'add.catalog')
+    if (to.includes('list=')) return canAccess(currentUser, users, 'add.catalog')
+    if (to.includes('section=')) return canAccess(currentUser, users, 'users.menu')
     return false
   }
   const pageTitle = location.pathname === '/herramientas' ? 'Herramientas' : location.pathname === '/listas' ? 'Añadir' : location.pathname === '/usuarios' ? 'Usuarios' : location.pathname === '/' ? 'Inicio' : 'Máquinas'
@@ -98,10 +88,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span className="w-5 text-center text-sm font-bold" aria-hidden="true">⚙</span><span className="flex-1 text-left">Herramientas</span><span>{expandedSection === 'herramientas' ? '−' : '+'}</span>
           </button>}
           {expandedSection === 'herramientas' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
-            {toolSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+            {toolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
           </div>}
 
-          {(addMachineSubmenu.some(item => canView(item.to)) || addToolSubmenu.some(item => canView(item.to)) || addSubmenu.some(item => canView(item.to))) && <>
+          {canAccess(currentUser, users, 'add.catalog') && <>
             <button onClick={() => setExpandedSection(agregarOpen ? null : 'anadir')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/listas' || (location.pathname === '/maquinas' && location.search === '?tab=catalogo') || (location.pathname === '/herramientas' && location.search === '?view=catalogo') ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
               <span className="w-5 text-center text-sm font-bold" aria-hidden="true">＋</span><span className="flex-1 text-left">Añadir</span><span>{agregarOpen ? '−' : '+'}</span>
             </button>
@@ -110,24 +100,24 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <span className="flex-1">Máquinas</span><span>{expandedSection === 'agregarMaquinas' ? '−' : '+'}</span>
               </button>
               {expandedSection === 'agregarMaquinas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
-                {addMachineSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+                {addMachineSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
               </div>}
               <button onClick={() => setExpandedSection(expandedSection === 'agregarHerramientas' ? 'anadir' : 'agregarHerramientas')} className="w-full flex items-center gap-2 px-3 py-2 text-[11px] uppercase tracking-wider text-left text-[#666] hover:text-white transition-colors">
                 <span className="flex-1">Herramientas</span><span>{expandedSection === 'agregarHerramientas' ? '−' : '+'}</span>
               </button>
               {expandedSection === 'agregarHerramientas' && <div className="ml-3 border-l border-[#292929] pl-2 space-y-1">
-                {addToolSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
+                {addToolSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[10px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#555] hover:text-white'}` }}>{item.label}</NavLink>)}
               </div>}
-              {addSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+              {addSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
             </div>}
           </>}
 
-          {userSubmenu.some(item => canView(item.to)) && <>
+          {canAccess(currentUser, users, 'users.menu') && <>
             <button onClick={() => setExpandedSection(expandedSection === 'usuarios' ? null : 'usuarios')} className={`w-full flex items-center gap-3 px-3 py-2.5 text-xs uppercase tracking-wider border-l-2 transition-colors ${location.pathname === '/usuarios' ? 'text-white border-[#FFB800]' : 'text-[#777] border-transparent hover:bg-[#151515] hover:text-[#ddd]'}`}>
               <span className="w-5 text-center text-sm font-bold" aria-hidden="true">♙</span><span className="flex-1 text-left">Usuarios</span><span>{expandedSection === 'usuarios' ? '−' : '+'}</span>
             </button>
             {expandedSection === 'usuarios' && <div className="ml-8 border-l border-[#333] pl-2 space-y-1">
-              {userSubmenu.filter(item => canView(item.to)).map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
+              {userSubmenu.map(item => <NavLink key={item.to} to={item.to} onClick={() => setMenuOpen(false)} className={() => { const [path, search = ''] = item.to.split('?'); const active = location.pathname === path && location.search === (search ? `?${search}` : ''); return `block px-3 py-2 text-[11px] uppercase tracking-wider transition-colors ${active ? 'text-[#FFB800]' : 'text-[#666] hover:text-white'}` }}>{item.label}</NavLink>)}
             </div>}
           </>}
         </nav>
@@ -142,12 +132,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="min-h-screen">
-        <header className="h-[86px] border-b border-[#252525] px-5 sm:px-8 flex items-center justify-between gap-4 bg-[#0a0a0a]">
+        <header className="min-h-19 border-b border-[#252525] px-5 sm:px-8 py-3 flex items-center justify-between gap-4 bg-[#0a0a0a]">
           <div className="flex min-w-0 items-center gap-4">
             <button aria-label="Abrir menú" onClick={() => setMenuOpen(true)} className="flex h-9 w-9 shrink-0 items-center justify-center border border-[#333] text-lg leading-none text-[#aaa] hover:border-[#777] hover:text-white cursor-pointer">☰</button>
             <div className="min-w-0">
             <div className="text-[10px] text-[#666] uppercase tracking-[0.2em]">CONTROL DE PLANTA</div>
-            <h1 className="text-xl font-bold text-white mt-1">{pageTitle}</h1>
+            <div className="flex items-center gap-3 mt-1">
+              <h1 className="text-lg font-bold text-white">{pageTitle}</h1>
+              <span className="text-[10px] uppercase tracking-wider text-[#00E87A]">● SISTEMA ONLINE</span>
+            </div>
             </div>
           </div>
           <div className="text-right">
@@ -157,7 +150,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className="px-5 sm:px-8 py-6 max-w-[1500px]">
+        <main className="px-5 sm:px-8 py-6 max-w-375">
         {children}
         </main>
       </div>

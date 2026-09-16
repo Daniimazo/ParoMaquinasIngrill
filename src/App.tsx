@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { StoreProvider, useStore, canAccess, canManageUsers } from './store'
+import { StoreProvider, useStore, canAccess, isSuperAdmin } from './store'
 import Layout from './components/Layout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -14,15 +14,16 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isLoggedIn, currentUser } = useStore()
+  const { isLoggedIn, currentUser, users } = useStore()
   if (!isLoggedIn) return <Navigate to="/login" replace />
-  return currentUser === 'admin' ? <>{children}</> : <Navigate to="/maquinas" replace />
+  return isSuperAdmin(currentUser, users) ? <>{children}</> : <Navigate to="/maquinas" replace />
 }
 
 function UserAdminRoute({ children }: { children: React.ReactNode }) {
   const { isLoggedIn, currentUser, users } = useStore()
   if (!isLoggedIn) return <Navigate to="/login" replace />
-  return canManageUsers(currentUser, users) ? <>{children}</> : <Navigate to="/maquinas" replace />
+  const canOpenUsers = canAccess(currentUser, users, 'users.menu')
+  return canOpenUsers ? <>{children}</> : <Navigate to="/maquinas" replace />
 }
 
 function PermissionRoute({ resource, children }: { resource: Parameters<typeof canAccess>[2]; children: React.ReactNode }) {
@@ -37,7 +38,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={isLoggedIn ? <Navigate to="/" replace /> : <LoginPage />} />
       <Route path="/" element={<ProtectedRoute><Layout><DashboardPage /></Layout></ProtectedRoute>} />
-      <Route path="/maquinas" element={<PermissionRoute resource="machines.summary"><Layout><MaquinasPage /></Layout></PermissionRoute>} />
+      <Route path="/maquinas" element={<ProtectedRoute><Layout><MaquinasPage /></Layout></ProtectedRoute>} />
       <Route path="/herramientas" element={<PermissionRoute resource="tools.panel"><Layout><HerramientasPage /></Layout></PermissionRoute>} />
       <Route path="/listas" element={<ProtectedRoute><Layout><ListasPage /></Layout></ProtectedRoute>} />
       <Route path="/usuarios" element={<UserAdminRoute><Layout><UsuariosPage /></Layout></UserAdminRoute>} />

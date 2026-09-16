@@ -48,13 +48,13 @@ export interface ToolLog {
   at: Date
 }
 
-export type UserRole = 'admin' | 'supervisor' | 'operador'
-export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
+export type UserRole = string
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'shift' | 'status' | 'resolveAny'
 export type PermissionResource =
-  | 'machines.summary' | 'machines.register' | 'machines.history' | 'machines.catalog'
-  | 'tools.panel' | 'tools.log' | 'tools.catalog'
-  | 'lists.areas' | 'lists.stopTypes' | 'lists.machineTypes' | 'lists.toolTypes' | 'lists.brands'
-  | 'users.permissions' | 'users.roles' | 'users.list' | 'users.profile' | 'users.password'
+  | 'machines.summary' | 'machines.register'
+  | 'tools.panel'
+  | 'add.catalog'
+  | 'users.menu'
 export type Permission = `${PermissionResource}.${PermissionAction}`
 
 export interface AppUser {
@@ -64,6 +64,14 @@ export interface AppUser {
   role: UserRole
   permissions: Permission[]
   active: boolean
+}
+
+export interface AppRole {
+  id: string
+  key: string
+  label: string
+  permissions: Permission[]
+  system?: boolean
 }
 
 export interface AvailablePermission {
@@ -186,29 +194,23 @@ const INITIAL_TOOL_LOGS: ToolLog[] = [
 ]
 
 const INITIAL_USERS: AppUser[] = [
-  { id: 'u1', username: 'admin', password: 'admin123', role: 'admin', permissions: [], active: true },
-  { id: 'u2', username: 'supervisor', password: 'sup2024', role: 'supervisor', permissions: ['machines.summary.view', 'machines.register.view', 'machines.register.create', 'machines.register.edit', 'machines.history.view', 'tools.panel.view', 'tools.log.view'], active: true },
-  { id: 'u3', username: 'operador', password: 'op1234', role: 'operador', permissions: ['machines.summary.view', 'machines.register.view', 'machines.register.create', 'machines.history.view', 'tools.panel.view'], active: true },
+  { id: 'u1', username: 'admin', password: 'admin123', role: 'super-administrativo', permissions: [], active: true },
+  { id: 'u2', username: 'supervisor', password: 'sup2024', role: 'supervisor', permissions: ['machines.summary.view', 'tools.panel.view'], active: true },
+  { id: 'u3', username: 'operador', password: 'op1234', role: 'operador', permissions: ['machines.summary.view', 'tools.panel.view'], active: true },
+]
+
+const INITIAL_ROLES: AppRole[] = [
+  { id: 'r1', key: 'super-administrativo', label: 'SUPER ADMINISTRATIVO', permissions: [], system: true },
+  { id: 'r2', key: 'supervisor', label: 'Supervisor', permissions: ['machines.summary.view', 'tools.panel.view'], system: true },
+  { id: 'r3', key: 'operador', label: 'Operador', permissions: ['machines.summary.view', 'tools.panel.view'], system: true },
 ]
 
 const PERMISSION_RESOURCES: { key: PermissionResource; label: string; description: string }[] = [
   { key: 'machines.summary', label: 'Máquinas / Resumen', description: 'Estado y resumen de máquinas.' },
-  { key: 'machines.register', label: 'Máquinas / Registrar paro', description: 'Registrar y levantar paros.' },
-  { key: 'machines.history', label: 'Máquinas / Historial', description: 'Consultar historial de paros.' },
-  { key: 'machines.catalog', label: 'Añadir / Máquinas', description: 'Administrar catálogo de máquinas.' },
+  { key: 'machines.register', label: 'Máquinas / Registrar paro', description: 'Finalizar cualquier paro.' },
   { key: 'tools.panel', label: 'Herramientas / Panel', description: 'Consultar estado de herramientas.' },
-  { key: 'tools.log', label: 'Herramientas / Bitácora', description: 'Consultar bitácora de herramientas.' },
-  { key: 'tools.catalog', label: 'Añadir / Herramientas', description: 'Administrar catálogo de herramientas.' },
-  { key: 'lists.areas', label: 'Añadir / Área', description: 'Administrar áreas.' },
-  { key: 'lists.stopTypes', label: 'Añadir / Tipo de paro', description: 'Administrar tipos de paro.' },
-  { key: 'lists.machineTypes', label: 'Añadir / Tipo de máquina', description: 'Administrar tipos de máquina.' },
-  { key: 'lists.toolTypes', label: 'Añadir / Tipo de herramienta', description: 'Administrar tipos de herramienta.' },
-  { key: 'lists.brands', label: 'Añadir / Marca', description: 'Administrar marcas.' },
-  { key: 'users.permissions', label: 'Usuarios / Permisos', description: 'Asignar permisos.' },
-  { key: 'users.roles', label: 'Usuarios / Roles', description: 'Consultar roles.' },
-  { key: 'users.list', label: 'Usuarios / Lista', description: 'Administrar cuentas.' },
-  { key: 'users.profile', label: 'Usuarios / Mi perfil', description: 'Consultar perfil.' },
-  { key: 'users.password', label: 'Usuarios / Contraseña', description: 'Cambiar contraseña.' },
+  { key: 'add.catalog', label: 'Añadir', description: 'Administrar todos los catálogos del sistema.' },
+  { key: 'users.menu', label: 'Usuarios', description: 'Permite ver el menú Usuarios y administrar permisos, roles y cuentas.' },
 ]
 
 export const PERMISSION_ACTIONS: { key: PermissionAction; label: string }[] = [
@@ -216,13 +218,41 @@ export const PERMISSION_ACTIONS: { key: PermissionAction; label: string }[] = [
   { key: 'create', label: 'Crear' },
   { key: 'edit', label: 'Editar' },
   { key: 'delete', label: 'Eliminar' },
+  { key: 'shift', label: 'Finalizar/Iniciar turno' },
+  { key: 'status', label: 'Cambiar estado' },
+  { key: 'resolveAny', label: 'Finalizar cualquier paro' },
 ]
 
-const INITIAL_PERMISSIONS: AvailablePermission[] = PERMISSION_RESOURCES.flatMap(resource => PERMISSION_ACTIONS.map(action => ({
+const RESOURCE_ACTIONS: Partial<Record<PermissionResource, PermissionAction[]>> = {
+  'machines.summary': ['view', 'shift'],
+  'machines.register': ['resolveAny'],
+  'tools.panel': ['view', 'status'],
+  'add.catalog': ['view'],
+  'users.menu': ['view'],
+}
+
+function describePermission(resource: string, action: PermissionAction, description: string): string {
+  if (resource === 'add.catalog' && action === 'view') return 'Permite ver el menú Añadir y todos sus submenús, con acceso para crear, editar y eliminar.'
+  if (resource === 'machines.summary' && action === 'view') return 'Permite ver el resumen y el estado general de las máquinas.'
+  if (resource === 'machines.summary' && action === 'shift') return 'Permite finalizar o iniciar el turno de producción.'
+  if (resource === 'machines.register' && action === 'resolveAny') return 'Permite finalizar cualquier paro, aunque lo haya registrado otro usuario.'
+  if (resource === 'tools.panel' && action === 'view') return 'Permite ver el menú Herramientas y sus submenús.'
+  if (resource === 'tools.panel' && action === 'status') return 'Permite cambiar el estado de las herramientas.'
+  if (action === 'view') return `Permite consultar ${description.toLowerCase()}`
+  if (action === 'create') return `Permite crear registros en ${description.toLowerCase()}`
+  if (action === 'edit') return `Permite editar registros en ${description.toLowerCase()}`
+  if (action === 'delete') return `Permite eliminar registros en ${description.toLowerCase()}`
+  return description
+}
+
+const INITIAL_PERMISSIONS: AvailablePermission[] = PERMISSION_RESOURCES.flatMap(resource => (RESOURCE_ACTIONS[resource.key] ?? ['view', 'create', 'edit', 'delete']).map(actionKey => {
+  const action = PERMISSION_ACTIONS.find(item => item.key === actionKey)!
+  return {
   key: `${resource.key}.${action.key}` as Permission,
   label: `${resource.label} / ${action.label}`,
-  description: resource.description,
-})))
+  description: describePermission(resource.key, action.key, resource.description),
+  }
+}))
 
 // ─── CONTEXT ─────────────────────────────────────────────────────────────────
 
@@ -234,6 +264,8 @@ interface AppStore {
   currentUser: string
   users: AppUser[]
   setUsers: React.Dispatch<React.SetStateAction<AppUser[]>>
+  roles: AppRole[]
+  setRoles: React.Dispatch<React.SetStateAction<AppRole[]>>
   availablePermissions: AvailablePermission[]
   setAvailablePermissions: React.Dispatch<React.SetStateAction<AvailablePermission[]>>
 
@@ -269,6 +301,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState('')
   const [users, setUsers] = useState<AppUser[]>(INITIAL_USERS)
+  const [roles, setRoles] = useState<AppRole[]>(INITIAL_ROLES)
   const [availablePermissions, setAvailablePermissions] = useState<AvailablePermission[]>(INITIAL_PERMISSIONS)
   const [lists, setLists] = useState<AppStore['lists']>({
     areas: [...TOOL_AREAS],
@@ -304,7 +337,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, users, setUsers, availablePermissions, setAvailablePermissions, lists, setLists, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
+    <StoreContext.Provider value={{ isLoggedIn, login, logout, currentUser, users, setUsers, roles, setRoles, availablePermissions, setAvailablePermissions, lists, setLists, machines, setMachines, events, setEvents, tools, setTools, toolLogs, setToolLogs, ticker }}>
       {children}
     </StoreContext.Provider>
   )
@@ -316,20 +349,16 @@ export function useStore() {
   return ctx
 }
 
-export function canResolveStop(event: Pick<StopEvent, 'reportedBy'>, currentUser: string): boolean {
-  return currentUser === 'admin' || event.reportedBy === currentUser
+export function canResolveStop(event: Pick<StopEvent, 'reportedBy'>, currentUser: string, users: AppUser[]): boolean {
+  return event.reportedBy === currentUser || canAccess(currentUser, users, 'machines.register', 'resolveAny')
 }
 
-export function isAdminUser(currentUser: string): boolean {
-  return currentUser === 'admin'
-}
-
-export function canManageUsers(currentUser: string, users: AppUser[]): boolean {
-  return canAccess(currentUser, users, 'users.list', 'view')
+export function isSuperAdmin(currentUser: string, users: AppUser[]): boolean {
+  return currentUser === 'admin' || users.some(user => user.username === currentUser && (user.role === 'super-administrativo' || user.role === 'admin'))
 }
 
 export function canAccess(currentUser: string, users: AppUser[], resource: PermissionResource, action: PermissionAction = 'view'): boolean {
-  if (currentUser === 'admin') return true
+  if (isSuperAdmin(currentUser, users)) return true
   const account = users.find(user => user.username === currentUser)
   return account?.permissions.includes(`${resource}.${action}` as Permission) === true
 }

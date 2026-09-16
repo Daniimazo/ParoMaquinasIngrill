@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx oxfmt src/pages/UsuariosPage\\.tsx$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

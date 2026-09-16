@@ -14,11 +14,12 @@ function ToolBadge({ status }: { status: ToolStatus }) {
 
 export default function HerramientasPage() {
   const { tools, setTools, toolLogs, setToolLogs, currentUser, users, lists } = useStore()
-  const canEditStatus = canAccess(currentUser, users, 'tools.catalog', 'edit')
-  const canCreate = canAccess(currentUser, users, 'tools.catalog', 'create')
-  const canEdit = canAccess(currentUser, users, 'tools.catalog', 'edit')
-  const canDelete = canAccess(currentUser, users, 'tools.catalog', 'delete')
-  const canCatalog = canCreate || canEdit || canDelete
+  const canEditStatus = canAccess(currentUser, users, 'tools.panel', 'status')
+  const canViewCatalog = canAccess(currentUser, users, 'add.catalog')
+  const canCreate = canViewCatalog
+  const canEdit = canViewCatalog
+  const canDelete = canViewCatalog
+  const canCatalog = canViewCatalog
 
   type Subview = 'panel' | 'catalogo' | 'bitacora'
   const [subview, setSubview] = useState<Subview>('panel')
@@ -42,6 +43,7 @@ export default function HerramientasPage() {
 
   // Log filter
   const [logFilter, setLogFilter] = useState('ALL')
+  const [categoryFilter, setCategoryFilter] = useState('ALL')
 
   const toolCounts = { stored: 0, in_use: 0, maintenance: 0, damaged: 0 } as Record<ToolStatus, number>
   tools.forEach(t => toolCounts[t.status]++)
@@ -50,6 +52,11 @@ export default function HerramientasPage() {
     .filter(l => logFilter === 'ALL' || l.toolName === logFilter)
     .sort((a, b) => b.at.getTime() - a.at.getTime())
   const logNames = [...new Set(toolLogs.map(l => l.toolName))].sort()
+  const toolCategories = [...new Set(tools.map(tool => tool.category).filter(Boolean))].sort()
+  const statusOrder: ToolStatus[] = ['damaged', 'maintenance', 'in_use', 'stored']
+  const panelTools = tools
+    .filter(tool => categoryFilter === 'ALL' || tool.category === categoryFilter)
+    .sort((first, second) => statusOrder.indexOf(first.status) - statusOrder.indexOf(second.status))
 
   function openStatusModal(t: Tool) {
     if (!canEditStatus) return
@@ -142,8 +149,15 @@ export default function HerramientasPage() {
               <div className="text-xs uppercase tracking-widest text-[#555] font-semibold">Todas las herramientas</div>
               <div className="flex-1 h-px bg-[#1a1a1a]" />
             </div>
+            <div className="mb-4 flex items-center gap-3">
+              <label htmlFor="tool-category-filter" className="text-xs uppercase tracking-widest text-[#555]">Tipo de herramienta</label>
+              <select id="tool-category-filter" value={categoryFilter} onChange={event => setCategoryFilter(event.target.value)} className="bg-[#0d0d0d] border border-[#333] text-white px-3 py-2 text-xs focus:outline-none focus:border-white transition-colors">
+                <option value="ALL">Todas</option>
+                {toolCategories.map(category => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {tools.map(t => (
+              {panelTools.map(t => (
                 <div key={t.id} className="border border-[#1a1a1a] bg-[#0a0a0a] p-4 hover:border-[#2a2a2a] transition-all" style={{ borderLeftColor: TOOL_STATUS_COLOR[t.status], borderLeftWidth: 2 }}>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div className="flex-1 min-w-0">
@@ -322,7 +336,7 @@ export default function HerramientasPage() {
             <div className="text-xs text-[#FF2D00] uppercase tracking-widest mb-1">Confirmación</div>
             <h3 className="text-xl font-bold text-white mb-2">Eliminar herramienta</h3>
             <p className="text-sm text-[#888] mb-1">¿Eliminar <span className="text-white font-bold">{tools.find(t => t.id === deleteConfirm)?.name}</span>?</p>
-            <p className="text-xs text-[#555] mb-6">La bitácora se conservará.</p>
+            <p className="text-xs text-[#555] mb-6">El historial de acciones se conservará.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-3 text-xs uppercase tracking-widest font-bold border border-[#333] text-[#555] hover:text-[#888] hover:border-[#555] transition-all cursor-pointer">Cancelar</button>
               <button onClick={() => remove(deleteConfirm)} className="flex-1 py-3 text-xs uppercase tracking-widest font-bold bg-[#FF2D00] text-white hover:bg-[#FF4422] transition-all cursor-pointer">Eliminar</button>
